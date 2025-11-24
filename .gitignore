@@ -1,0 +1,39 @@
+# Rust / Cargo
+/target
+Cargo.lock          # optional: keep if you want reproducible builds, remove if you prefer it ignored
+
+# mdBook build output
+/book
+/build
+
+# mdBook source files that are often generated or temporary
+/src/rss.xml        # if you use mdbook-rss or similar
+/src/print.pdf      # if you use mdbook-pdf
+/src/*.epub
+
+# Temporary files
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# IDE / Editor
+.idea/
+.vscode/
+*.code-workspace
+
+# Nix (if you ever add a flake.nix in this repo)
+result
+/result
+/result-*
+
+# Local testing mdBook instances (when you run `mdbook serve` or `mdbook build` locally in a test folder)
+/example-book/
+/test-book/
+/book/
+/temp-book/
+
+# Optional: ignore Cargo.lock in library crates (common practice)
+# Uncomment the next line if you want to follow this convention:
+# Cargo.lock/target
