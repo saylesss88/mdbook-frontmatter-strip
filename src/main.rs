@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail};
 use mdbook::preprocess::Preprocessor;
 use mdbook_frontmatter_strip::{strip_frontmatter, FrontmatterStrip};
 use serde_json::Value;
@@ -16,13 +16,13 @@ fn main() {
     }
 
     // Otherwise run the actual preprocessor
-    if let Err(e) = run() {
+    if let Err(e) = run_preprocessor() {
         eprintln!("Error: {e}");
         process::exit(1);
     }
 }
 
-fn run() -> Result<()> {
+fn run_preprocessor() -> anyhow::Result<()> {
     let mut input = String::new();
     io::stdin().lock().read_to_string(&mut input)?;
 
@@ -33,35 +33,49 @@ fn run() -> Result<()> {
         bail!("Expected [context, book] array from mdbook");
     }
 
-    let book = values
-        .get_mut(1)
-        .and_then(|v| v.as_object_mut())
-        .ok_or_else(|| anyhow!("Second element is not a book object"))?;
+    let book_obj = values[1]
+        .as_object_mut()
+        .ok_or_else(|| anyhow!("Book is not an object"))?;
 
-    if let Some(items) = book.get_mut("items").and_then(|v| v.as_array_mut()) {
+    if let Some(items) = book_obj.get_mut("items").and_then(|v| v.as_array_mut()) {
         for item in items {
-            process_item(item);
+            process_book_item(item);
         }
+    } else {
+        bail!("No 'items' array found in book");
     }
 
-    // Write only the modified book back
     let mut stdout = io::stdout().lock();
     serde_json::to_writer(&mut stdout, &values[1])?;
     writeln!(stdout)?;
+
     Ok(())
 }
 
-fn process_item(value: &mut Value) {
-    if let Value::Object(map) = value {
-        if let Some(Value::String(content)) = map.get_mut("content") {
-            let (stripped, _) = strip_frontmatter(content);
-            *content = stripped.trim_start_matches('\n').to_string();
-        }
-
-        if let Some(Value::Array(subitems)) = map.get_mut("items") {
-            for item in subitems {
-                process_item(item);
+fn process_book_item(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            // Strip content in chapters
+            if let Some(Value::String(content)) = map.get_mut("content") {
+                let (stripped, _) = strip_frontmatter(content);
+                *content = stripped
+                    .trim_start_matches('\n')
+                    .trim_end_matches('\n')
+                    .to_string()
+                    + "\n";
+            }
+            // Recurse on nested items (sections)
+            if let Some(Value::Array(items)) = map.get_mut("items") {
+                for item in items.iter_mut() {
+                    process_book_item(item);
+                }
             }
         }
+        Value::Array(arr) => {
+            for item in arr.iter_mut() {
+                process_book_item(item);
+            }
+        }
+        _ => {}
     }
 }

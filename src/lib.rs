@@ -2,8 +2,7 @@ use mdbook::book::{Book, BookItem};
 use mdbook::errors::Error;
 use mdbook::preprocess::{Preprocessor, PreprocessorContext};
 
-#[derive(Default)]
-pub struct FrontmatterStrip;
+pub struct FrontmatterStrip; // Unit struct; no Default needed
 
 impl Preprocessor for FrontmatterStrip {
     fn name(&self) -> &str {
@@ -14,47 +13,50 @@ impl Preprocessor for FrontmatterStrip {
         book.for_each_mut(|item| {
             if let BookItem::Chapter(ch) = item {
                 let (stripped, _) = strip_frontmatter(&ch.content);
-                ch.content = stripped.trim_start_matches('\n').to_owned();
+                ch.content = stripped
+                    .trim_start_matches('\n')
+                    .trim_end_matches('\n')
+                    .to_owned()
+                    + "\n";
             }
         });
         Ok(book)
     }
 
-    fn supports_renderer(&self, renderer: &str) -> bool {
-        renderer == "html"
+    fn supports_renderer(&self, _renderer: &str) -> bool {
+        true
     }
 }
 
 pub fn strip_frontmatter(input: &str) -> (String, Option<String>) {
-    let mut lines = input.lines().peekable();
-
-    if lines.peek().map(|l| l.trim()) != Some("---") {
+    let lines: Vec<&str> = input.lines().collect();
+    if lines.is_empty() {
         return (input.to_owned(), None);
     }
 
-    let mut frontmatter_lines = Vec::new();
-    let mut body_lines = Vec::new();
-    let mut in_frontmatter = true;
+    // Find start '---'
+    let start_idx = match lines.iter().position(|l| l.trim() == "---") {
+        Some(i) => i,
+        None => return (input.to_owned(), None),
+    };
 
-    lines.next(); // skip first ---
+    // Find ending '---'
+    let end_idx = match lines
+        .iter()
+        .skip(start_idx + 1)
+        .position(|l| l.trim() == "---")
+    {
+        Some(i) => start_idx + 1 + i,
+        None => return (input.to_owned(), None), // malformed → leave content unchanged
+    };
 
-    for line in lines {
-        if in_frontmatter && line.trim() == "---" {
-            in_frontmatter = false;
-            continue;
-        }
-        if in_frontmatter {
-            frontmatter_lines.push(line);
-        } else {
-            body_lines.push(line);
-        }
-    }
+    // Extract frontmatter (inclusive of both --- lines)
+    let front = lines[start_idx..=end_idx].join("\n");
 
-    let body = body_lines.join("\n").trim().to_owned();
-    let frontmatter = (!frontmatter_lines.is_empty()).then(|| {
-        let fm = frontmatter_lines.join("\n").trim_end().to_owned();
-        format!("---\n{fm}\n---")
-    });
+    // Extract body (everything after the end delimiter)
+    let body = lines[end_idx + 1..].join("\n");
 
-    (body, frontmatter)
+    let body = body.trim().to_owned();
+
+    (body, Some(front))
 }
