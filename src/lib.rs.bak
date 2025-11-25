@@ -1,27 +1,22 @@
 use serde_json::{Map, Value};
+use serde_yaml::Value as YamlValue;
 
 /// Strip YAML frontmatter from a Markdown string.
-/// Frontmatter must be at the very top of the file, delimited by `---` fences.
+/// Returns `(stripped_content, frontmatter_text)`.
 pub fn strip_frontmatter(content: &str) -> (String, Option<String>) {
     let lines: Vec<&str> = content.lines().collect();
     if lines.is_empty() {
         return (content.to_string(), None);
     }
 
-    // Find first non-empty line; require it to be `---`
-    let mut first_nonempty = None;
-    for (i, line) in lines.iter().enumerate() {
-        if !line.trim().is_empty() {
-            first_nonempty = Some(i);
-            break;
-        }
-    }
-    let start_idx = match first_nonempty {
+    // Find first non-empty line; must be `---`
+    let start_idx = lines.iter().position(|line| !line.trim().is_empty());
+    let start_idx = match start_idx {
         Some(i) if lines[i].trim() == "---" => i,
-        _ => return (content.to_string(), None), // no top-of-file frontmatter
+        _ => return (content.to_string(), None),
     };
 
-    // Find matching closing `---` after the start
+    // Find closing `---`
     let end_idx = lines
         .iter()
         .skip(start_idx + 1)
@@ -29,58 +24,55 @@ pub fn strip_frontmatter(content: &str) -> (String, Option<String>) {
         .map(|rel| start_idx + 1 + rel)
         .unwrap_or(lines.len());
 
-    let mut front = String::new();
-    let mut body = String::new();
+    // Collect frontmatter
+    let front = lines[start_idx..=end_idx].join("\n");
 
-    // Collect frontmatter (between the fences, including them)
-    for line in lines.iter().skip(start_idx).take(end_idx - start_idx + 1) {
-        front.push_str(line);
-        front.push('\n');
-    }
-    if !front.is_empty() {
-        front = front.trim_end_matches('\n').to_string();
-    }
+    // Collect remaining content
+    let body = if end_idx + 1 < lines.len() {
+        lines[end_idx + 1..].join("\n")
+    } else {
+        "".to_string()
+    };
 
-    // Collect the rest as body
-    for line in lines.iter().skip(end_idx + 1) {
-        body.push_str(line);
-        body.push('\n');
-    }
-    let body = body.trim().to_string();
-
-    (
-        body,
-        if end_idx > start_idx {
-            Some(front)
-        } else {
-            None
-        },
-    )
+    (body, Some(front))
 }
 
-/// Process the inner `Chapter` object: strip frontmatter from its `content`.
-fn process_chapter(chapter: &mut Map<String, Value>) {
-    // Clone name so we don't hold an immutable borrow across get_mut
-    let name = chapter
-        .get("name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown")
-        .to_string();
+/// Remove keys from chapter that exist in YAML frontmatter.
+fn remove_frontmatter_metadata(chapter: &mut Map<String, Value>, frontmatter: &str) {
+    if let Ok(_yaml) = serde_yaml::from_str::<YamlValue>(frontmatter) {
+        if let Ok(YamlValue::Mapping(map)) = serde_yaml::from_str::<YamlValue>(frontmatter) {
+            for (key, _) in map {
+                if let YamlValue::String(k) = key {
+                    chapter.remove(&k);
+                }
+            }
+        }
+    }
+}
 
+/// Process a single Chapter object: remove frontmatter from content and metadata.
+fn process_chapter(chapter: &mut Map<String, Value>) {
     if let Some(Value::String(content)) = chapter.get_mut("content") {
         let (stripped, frontmatter) = strip_frontmatter(content);
 
-        // Debug log to stderr so we don't corrupt JSON
-        eprintln!(
-            "mdbook-frontmatter-strip: chapter={:?}, frontmatter_found={}",
-            name,
-            frontmatter.is_some()
-        );
-
+        // Replace content
         *content = stripped.trim_matches('\n').to_string() + "\n";
+
+        // Remove metadata keys from YAML
+        if let Some(front) = frontmatter {
+            remove_frontmatter_metadata(chapter, &front);
+
+            // Optional: debug
+            eprintln!(
+                "mdbook-frontmatter-strip: chapter {:?}, frontmatter removed",
+                chapter
+                    .get("name")
+                    .unwrap_or(&Value::String("unknown".to_string()))
+            );
+        }
     }
 
-    // Recurse into nested sub_items if present
+    // Recurse into sub_items if present
     if let Some(Value::Array(sub_items)) = chapter.get_mut("sub_items") {
         for item in sub_items.iter_mut() {
             process_book_item(item);
@@ -88,19 +80,16 @@ fn process_chapter(chapter: &mut Map<String, Value>) {
     }
 }
 
-/// Recursively process mdBook "sections" / nested items.
-///
-/// For mdBook 0.5.x, `book["sections"]` is an array of objects like:
-/// `{ "Chapter": { ... } }`, `{ "Separator": { ... } }`, etc. [web:59]
+/// Recursively process mdBook book items (sections/items/sub_items)
 pub fn process_book_item(value: &mut Value) {
     match value {
         Value::Object(map) => {
-            // If this object wraps a Chapter, process it
+            // Process Chapter objects
             if let Some(Value::Object(chapter)) = map.get_mut("Chapter") {
                 process_chapter(chapter);
             }
 
-            // Also recurse into any nested arrays (sections, items, sub_items)
+            // Recurse into child arrays
             for key in &["sections", "items", "sub_items"] {
                 if let Some(Value::Array(children)) = map.get_mut(*key) {
                     for child in children.iter_mut() {
