@@ -50,36 +50,42 @@ fn run_preprocessor() -> anyhow::Result<()> {
         bail!("Expected [context, book] array from mdbook");
     }
 
-    let book = &mut values[1];
-    process_book(book);
-
-    let mut stdout = io::stdout().lock();
-    serde_json::to_writer(&mut stdout, book)?;
-    writeln!(stdout)?; // mdbook requires the trailing newline
-
-    Ok(())
-}
-
-fn process_book(value: &mut Value) {
-    if let Value::Array(items) = value {
+    let book_obj = values[1]
+        .as_object_mut()
+        .ok_or_else(|| anyhow::anyhow!("Book is not an object"))?;
+    if let Some(items) = book_obj.get_mut("items").and_then(|v| v.as_array_mut()) {
         for item in items {
             process_book_item(item);
         }
+    } else {
+        bail!("No 'items' array found in book");
     }
-}
 
+    let mut stdout = io::stdout().lock();
+    serde_json::to_writer(&mut stdout, &values[1])?;
+    writeln!(stdout)?;
+
+    Ok(())
+}
 fn process_book_item(value: &mut Value) {
     match value {
         Value::Object(map) => {
-            if let Some(Value::Object(chapter)) = map.get_mut("Chapter") {
-                if let Some(Value::String(content)) = chapter.get_mut("content") {
+            // Target chapters: strip "content" if present and a string
+            if let Some(content_val) = map.get_mut("content") {
+                if let Value::String(content) = content_val {
                     let (stripped, _) = strip_frontmatter(content);
-                    *content = stripped.trim_start_matches('\n').to_owned();
+                    *content_val = Value::String(stripped.trim_start_matches('\n').to_string());
                 }
             }
-            for (_key, val) in map.iter_mut() {
-                process_book_item(val);
+            // Recurse on sub-items for nested sections
+            if let Some(items_val) = map.get_mut("items") {
+                if let Value::Array(items) = items_val {
+                    for item in items.iter_mut() {
+                        process_book_item(item);
+                    }
+                }
             }
+            // No need for full map recursion; only sub-items matter
         }
         Value::Array(arr) => {
             for item in arr.iter_mut() {
