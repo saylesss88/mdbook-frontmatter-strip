@@ -82,7 +82,7 @@ pub fn strip_frontmatter(content: &str) -> String {
 fn process_chapter(chapter: &mut Map<String, Value>) {
     if let Some(Value::String(content)) = chapter.get_mut("content") {
         let stripped = strip_frontmatter(content);
-        *content = stripped.trim_matches('\n').to_string() + "\n";
+        *content = format!("[STRIPPED]\n{}\n", stripped.trim_matches('\n'));
     }
 
     if let Some(Value::Array(sub_items)) = chapter.get_mut("sub_items") {
@@ -91,7 +91,6 @@ fn process_chapter(chapter: &mut Map<String, Value>) {
         }
     }
 }
-
 /// Recursively process all mdBook items (chapters, parts, sections)
 pub fn process_book_item(value: &mut Value) {
     match value {
