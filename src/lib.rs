@@ -82,7 +82,7 @@ pub fn strip_frontmatter(content: &str) -> String {
 fn process_chapter(chapter: &mut Map<String, Value>) {
     if let Some(Value::String(content)) = chapter.get_mut("content") {
         let stripped = strip_frontmatter(content);
-        *content = format!("[STRIPPED]\n{}\n", stripped.trim_matches('\n'));
+        *content = stripped.trim_matches('\n').to_string() + "\n";
     }
 
     if let Some(Value::Array(sub_items)) = chapter.get_mut("sub_items") {
