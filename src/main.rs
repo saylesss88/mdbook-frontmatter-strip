@@ -5,8 +5,9 @@ use std::io::{self, Read, Write};
 use std::process;
 
 fn main() -> Result<()> {
-    // Handle `supports` subcommand: `mdbook-frontmatter-strip supports html`
     let args: Vec<String> = std::env::args().collect();
+
+    // Handle mdbook supports command
     if args.len() == 3 && args[1] == "supports" {
         let renderer = &args[2];
         if renderer == "html" {
@@ -21,7 +22,7 @@ fn main() -> Result<()> {
 
 fn run_preprocessor() -> Result<()> {
     let mut input = String::new();
-    io::stdin().lock().read_to_string(&mut input)?;
+    io::stdin().read_to_string(&mut input)?;
 
     // mdBook passes [context, book]
     let mut values: Vec<Value> =
@@ -33,23 +34,22 @@ fn run_preprocessor() -> Result<()> {
 
     let book = &mut values[1];
 
-    // mdBook 0.5.x uses `sections` as the main entry
+    // mdBook 0.5.x main entry is sections or items
     if let Some(Value::Array(sections)) = book.get_mut("sections") {
         for section in sections.iter_mut() {
             process_book_item(section);
         }
     } else if let Some(Value::Array(items)) = book.get_mut("items") {
-        // Fallback for older/alternate structure
         for item in items.iter_mut() {
             process_book_item(item);
         }
     } else {
         return Err(anyhow!(
-            "Book JSON has no 'sections' or 'items' array; cannot process"
+            "Book JSON has no 'sections' or 'items'; cannot process"
         ));
     }
 
-    // Output modified book (not [context, book])
+    // Output modified book JSON (without context)
     let mut stdout = io::stdout().lock();
     serde_json::to_writer(&mut stdout, &values[1])?;
     writeln!(stdout)?;
