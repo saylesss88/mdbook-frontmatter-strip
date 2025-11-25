@@ -1,20 +1,27 @@
 use serde_json::{Map, Value};
 
 /// Strip YAML frontmatter from a Markdown string.
-/// Frontmatter is assumed to be the first `---` block in the file.
+/// Frontmatter must be at the very top of the file, delimited by `---` fences.
 pub fn strip_frontmatter(content: &str) -> (String, Option<String>) {
     let lines: Vec<&str> = content.lines().collect();
     if lines.is_empty() {
         return (content.to_string(), None);
     }
 
-    // Find first line that is exactly a '---' fence (ignoring surrounding whitespace)
-    let start_idx = match lines.iter().position(|line| line.trim() == "---") {
-        Some(i) => i,
-        None => return (content.to_string(), None), // no frontmatter
+    // Find first non-empty line; require it to be `---`
+    let mut first_nonempty = None;
+    for (i, line) in lines.iter().enumerate() {
+        if !line.trim().is_empty() {
+            first_nonempty = Some(i);
+            break;
+        }
+    }
+    let start_idx = match first_nonempty {
+        Some(i) if lines[i].trim() == "---" => i,
+        _ => return (content.to_string(), None), // no top-of-file frontmatter
     };
 
-    // Find matching closing '---' after the start fence
+    // Find matching closing `---` after the start
     let end_idx = lines
         .iter()
         .skip(start_idx + 1)
@@ -26,7 +33,7 @@ pub fn strip_frontmatter(content: &str) -> (String, Option<String>) {
     let mut body = String::new();
 
     // Collect frontmatter (between the fences, including them)
-    for line in lines.iter().skip(start_idx).take(end_idx - start_idx) {
+    for line in lines.iter().skip(start_idx).take(end_idx - start_idx + 1) {
         front.push_str(line);
         front.push('\n');
     }
@@ -35,7 +42,7 @@ pub fn strip_frontmatter(content: &str) -> (String, Option<String>) {
     }
 
     // Collect the rest as body
-    for line in lines.iter().skip(end_idx) {
+    for line in lines.iter().skip(end_idx + 1) {
         body.push_str(line);
         body.push('\n');
     }
@@ -51,21 +58,21 @@ pub fn strip_frontmatter(content: &str) -> (String, Option<String>) {
     )
 }
 
-// Process a single Chapter object: strip frontmatter from its `content`.
+/// Process the inner `Chapter` object: strip frontmatter from its `content`.
 fn process_chapter(chapter: &mut Map<String, Value>) {
-    // 1. Take an owned copy of the name so we don't hold a borrow into `chapter`
+    // Clone name so we don't hold an immutable borrow across get_mut
     let name = chapter
         .get("name")
         .and_then(|v| v.as_str())
         .unwrap_or("unknown")
-        .to_string(); // <-- clone into owned String; borrow ends here
+        .to_string();
 
-    // 2. Now it's safe to mutably borrow `chapter` for `content`
     if let Some(Value::String(content)) = chapter.get_mut("content") {
         let (stripped, frontmatter) = strip_frontmatter(content);
 
+        // Debug log to stderr so we don't corrupt JSON
         eprintln!(
-            "Processing chapter: {}, frontmatter found: {}",
+            "mdbook-frontmatter-strip: chapter={:?}, frontmatter_found={}",
             name,
             frontmatter.is_some()
         );
@@ -73,7 +80,7 @@ fn process_chapter(chapter: &mut Map<String, Value>) {
         *content = stripped.trim_matches('\n').to_string() + "\n";
     }
 
-    // 3. Recurse into nested items if needed
+    // Recurse into nested sub_items if present
     if let Some(Value::Array(sub_items)) = chapter.get_mut("sub_items") {
         for item in sub_items.iter_mut() {
             process_book_item(item);
@@ -81,20 +88,19 @@ fn process_chapter(chapter: &mut Map<String, Value>) {
     }
 }
 
-/// Recursively process any mdBook "section" value.
+/// Recursively process mdBook "sections" / nested items.
 ///
-/// mdBook 0.5.x represents sections as an array under `book["sections"]`,
-/// where each element is an object like `{ "Chapter": { ... } }`,
-/// `{ "Separator": { ... } }`, etc. [web:59][web:44]
+/// For mdBook 0.5.x, `book["sections"]` is an array of objects like:
+/// `{ "Chapter": { ... } }`, `{ "Separator": { ... } }`, etc. [web:59]
 pub fn process_book_item(value: &mut Value) {
     match value {
         Value::Object(map) => {
-            // If this object wraps a Chapter, drill into it
+            // If this object wraps a Chapter, process it
             if let Some(Value::Object(chapter)) = map.get_mut("Chapter") {
                 process_chapter(chapter);
             }
 
-            // Recurse into nested arrays if present (sections, items, sub_items, etc.)
+            // Also recurse into any nested arrays (sections, items, sub_items)
             for key in &["sections", "items", "sub_items"] {
                 if let Some(Value::Array(children)) = map.get_mut(*key) {
                     for child in children.iter_mut() {

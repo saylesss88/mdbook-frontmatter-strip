@@ -9,7 +9,6 @@ fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if args.len() == 3 && args[1] == "supports" {
         let renderer = &args[2];
-        // We only care about HTML builds
         if renderer == "html" {
             process::exit(0);
         } else {
@@ -17,7 +16,6 @@ fn main() -> Result<()> {
         }
     }
 
-    // Otherwise, run as a normal preprocessor
     run_preprocessor()
 }
 
@@ -35,12 +33,13 @@ fn run_preprocessor() -> Result<()> {
 
     let book = &mut values[1];
 
-    // mdBook 0.5.x uses `sections` as the main entry; fall back to `items` just in case. [web:59]
+    // mdBook 0.5.x uses `sections` as the main entry
     if let Some(Value::Array(sections)) = book.get_mut("sections") {
         for section in sections.iter_mut() {
             process_book_item(section);
         }
     } else if let Some(Value::Array(items)) = book.get_mut("items") {
+        // Fallback for older/alternate structure
         for item in items.iter_mut() {
             process_book_item(item);
         }
@@ -50,7 +49,7 @@ fn run_preprocessor() -> Result<()> {
         ));
     }
 
-    // Output modified book (just the book value, not [context, book])
+    // Output modified book (not [context, book])
     let mut stdout = io::stdout().lock();
     serde_json::to_writer(&mut stdout, &values[1])?;
     writeln!(stdout)?;
