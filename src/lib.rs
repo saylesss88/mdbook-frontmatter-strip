@@ -51,8 +51,7 @@ pub fn strip_frontmatter(content: &str) -> (String, Option<String>) {
     )
 }
 
-/// Process a single Chapter object: strip frontmatter from its `content`.
-
+// Process a single Chapter object: strip frontmatter from its `content`.
 fn process_chapter(chapter: &mut Map<String, Value>) {
     // 1. Take an owned copy of the name so we don't hold a borrow into `chapter`
     let name = chapter
