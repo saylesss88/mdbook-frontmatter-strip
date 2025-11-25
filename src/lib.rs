@@ -26,38 +26,71 @@ impl Preprocessor for FrontmatterStrip {
 }
 
 pub fn strip_frontmatter(input: &str) -> (String, Option<String>) {
+    let lines: Vec<&str> = input.lines().collect();
+    if lines.is_empty() {
+        return (input.to_string(), None);
+    }
+
     let mut front = String::new();
     let mut body = String::new();
     let mut in_frontmatter = false;
     let mut saw_start = false;
+    let mut end_found = false;
 
-    for (i, line) in input.lines().enumerate() {
+    for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
+        let full_line = *line; // Preserve original for appending
 
-        if i == 0 && trimmed == "---" {
-            saw_start = true;
-            in_frontmatter = true;
-            front.push_str(line);
-            front.push('\n');
-            continue;
+        if !saw_start {
+            if trimmed == "---" {
+                saw_start = true;
+                in_frontmatter = true;
+                front.push_str(full_line);
+                front.push('\n');
+                continue;
+            } else {
+                // Before start: append to body (e.g., leading non-frontmatter content)
+                body.push_str(full_line);
+                body.push('\n');
+                continue;
+            }
         }
 
         if in_frontmatter {
-            front.push_str(line);
+            front.push_str(full_line);
             front.push('\n');
             if trimmed == "---" {
-                in_frontmatter = false;
+                end_found = true;
+                // Body starts after this line
+                for remaining_line in lines.iter().skip(i + 1) {
+                    body.push_str(remaining_line);
+                    body.push('\n');
+                }
+                break;
             }
-            continue;
+        } else {
+            body.push_str(full_line);
+            body.push('\n');
         }
-
-        body.push_str(line);
-        body.push('\n');
     }
 
-    if saw_start {
-        (body, Some(front))
-    } else {
-        (input.to_string(), None)
+    // If no end delimiter, treat everything after start as body
+    if saw_start && !end_found {
+        body.clear();
+        let body_start_idx = lines.iter().position(|l| l.trim() == "---").unwrap_or(0) + 1;
+        for line in lines.iter().skip(body_start_idx) {
+            body.push_str(line);
+            body.push('\n');
+        }
     }
+
+    let body_clean = body.trim().to_string();
+    (
+        body_clean,
+        if saw_start {
+            Some(front.trim().to_string())
+        } else {
+            None
+        },
+    )
 }

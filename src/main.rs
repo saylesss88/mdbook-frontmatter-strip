@@ -23,12 +23,11 @@ enum Command {
 fn main() {
     let cli = Cli::parse();
 
-    // FrontmatterStrip implements Default and Preprocessor
-    let pre = FrontmatterStrip::default();
+    // Direct construction: no need for default() on unit struct
+    let pre = FrontmatterStrip;
 
     match cli.command {
         Some(Command::Supports { renderer }) => {
-            // supports_renderer is now in scope because we imported the trait
             let supported = Preprocessor::supports_renderer(&pre, &renderer);
             process::exit(if supported { 0 } else { 1 });
         }
@@ -77,15 +76,13 @@ fn process_book_item(value: &mut Value) {
                     *content_val = Value::String(stripped.trim_start_matches('\n').to_string());
                 }
             }
-            // Recurse on sub-items for nested sections
-            if let Some(items_val) = map.get_mut("items") {
-                if let Value::Array(items) = items_val {
-                    for item in items.iter_mut() {
-                        process_book_item(item);
-                    }
+            // Recurse on sub-items: flatten nested if let
+            if let Some(Value::Array(items)) = map.get_mut("items") {
+                for item in items.iter_mut() {
+                    process_book_item(item);
                 }
             }
-            // No need for full map recursion; only sub-items matter
+            // No full map recursion; only sub-items matter
         }
         Value::Array(arr) => {
             for item in arr.iter_mut() {
