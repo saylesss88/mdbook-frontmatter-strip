@@ -8,43 +8,76 @@ pub fn strip_frontmatter(content: &str) -> String {
         return content.to_string();
     }
 
-    // Find the first non-empty line
-    let start_idx = lines
-        .iter()
-        .position(|line| !line.trim().is_empty())
-        .filter(|&i| lines[i].trim() == "---");
+    // Helper: does this line look like a YAML key: value?
+    fn is_yaml_kv(line: &str) -> bool {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            return false;
+        }
+        // crude but effective: starts with an identifier-ish token followed by :
+        if let Some(colon_idx) = trimmed.find(':') {
+            let (key, _) = trimmed.split_at(colon_idx);
+            // avoid matching things like "http://"
+            key.chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+                && !key.is_empty()
+        } else {
+            false
+        }
+    }
 
-    if start_idx.is_none() {
+    // 1) Skip leading empty lines
+    let mut idx = 0;
+    while idx < lines.len() && lines[idx].trim().is_empty() {
+        idx += 1;
+    }
+
+    if idx >= lines.len() {
         return content.to_string();
     }
-    let start_idx = start_idx.unwrap();
 
-    // Find matching closing ---
-    let end_idx = lines
-        .iter()
-        .skip(start_idx + 1)
-        .position(|line| line.trim() == "---")
-        .map(|rel| start_idx + 1 + rel);
+    // Case A: fenced frontmatter starting with ---
+    if lines[idx].trim() == "---" {
+        let start_idx = idx;
 
-    let body = if let Some(end_idx) = end_idx {
-        lines
-            .iter()
-            .skip(end_idx + 1)
-            .cloned()
-            .collect::<Vec<&str>>()
-            .join("\n")
-    } else {
-        lines
+        // Find matching closing ---
+        let end_idx = lines
             .iter()
             .skip(start_idx + 1)
-            .cloned()
-            .collect::<Vec<&str>>()
-            .join("\n")
-    };
+            .position(|line| line.trim() == "---")
+            .map(|rel| start_idx + 1 + rel);
 
-    body.trim_start_matches('\n').to_string()
+        let body_start = if let Some(end_idx) = end_idx {
+            end_idx + 1
+        } else {
+            // No closing fence: treat everything after the first fence as body
+            start_idx + 1
+        };
+
+        let body = lines[body_start..].join("\n");
+        return body.trim_start_matches('\n').to_string();
+    }
+
+    // Case B: unfenced YAML-like lines at the very top
+    let mut front_lines = 0;
+    let mut i = idx;
+    while i < lines.len() && is_yaml_kv(lines[i]) {
+        front_lines += 1;
+        i += 1;
+    }
+
+    if front_lines > 0 {
+        // Optionally skip a single blank line after the header block
+        if i < lines.len() && lines[i].trim().is_empty() {
+            i += 1;
+        }
+        let body = lines[i..].join("\n");
+        return body.trim_start_matches('\n').to_string();
+    }
+
+    // Otherwise, no frontmatter detected
+    content.to_string()
 }
-
 /// Process a chapter object, removing YAML frontmatter from its content
 fn process_chapter(chapter: &mut Map<String, Value>) {
     if let Some(Value::String(content)) = chapter.get_mut("content") {
@@ -52,7 +85,6 @@ fn process_chapter(chapter: &mut Map<String, Value>) {
         *content = stripped.trim_matches('\n').to_string() + "\n";
     }
 
-    // Recurse into sub_items if present
     if let Some(Value::Array(sub_items)) = chapter.get_mut("sub_items") {
         for item in sub_items.iter_mut() {
             process_book_item(item);
