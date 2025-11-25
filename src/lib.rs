@@ -64,7 +64,7 @@ fn process_chapter(chapter: &mut Map<String, Value>) {
     if let Some(Value::String(content)) = chapter.get_mut("content") {
         let (stripped, frontmatter) = strip_frontmatter(content);
 
-        println!(
+        eprintln!(
             "Processing chapter: {}, frontmatter found: {}",
             name,
             frontmatter.is_some()
