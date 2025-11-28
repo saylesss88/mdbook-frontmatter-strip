@@ -1,6 +1,5 @@
 # Rust / Cargo
 /target
-Cargo.lock          # optional: keep if you want reproducible builds, remove if you prefer it ignored
 
 # mdBook build output
 /book
