@@ -42,4 +42,4 @@ mdbook build
 
 ## License
 
-Apache-2.0
+[Apache License 2.0](https://github.com/saylesss88/mdbook-frontmatter-strip/blob/main/LICENSE)
