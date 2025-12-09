@@ -4,6 +4,8 @@ An mdBook preprocessor that strips YAML frontmatter from chapters before they
 are rendered, so metadata like `title`, `date`, or `tags` does not appear in the
 generated HTML.
 
+---
+
 ## Installation
 
 ```bash
@@ -39,6 +41,23 @@ Then build as usual:
 ```bash
 mdbook build
 ```
+
+---
+
+## Behavior
+
+- Supports fenced `---` YAML frontmatter at the top.
+
+- Supports unfenced YAML only when there are at least 2 consecutive `key: value`
+  lines.
+
+- URLs like `http://example.com` at the top are not treated as frontmatter.
+
+> This crate includes integration tests that exercise fenced and unfenced
+> frontmatter stripping, nested chapters, and common edge cases (like top-level
+> URLs), to keep the behavior stable across mdBook updates.
+
+---
 
 ## License
 

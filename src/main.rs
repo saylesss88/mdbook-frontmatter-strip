@@ -41,7 +41,7 @@ fn main() -> Result<()> {
 }
 
 fn print_version() {
-    // Uses Cargo’s built-in metadata from Cargo.toml. [web:13][web:16]
+    // Uses Cargo’s built-in metadata from Cargo.toml.
     println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
 }
 
@@ -62,7 +62,7 @@ fn run_preprocessor() -> Result<()> {
 
     let book = &mut values[1];
 
-    // mdBook 0.5.x main entry is sections or items. [web:1]
+    // mdBook 0.5.x main entry is sections or items.
     if let Some(Value::Array(sections)) = book.get_mut("sections") {
         for section in sections.iter_mut() {
             process_book_item(section);

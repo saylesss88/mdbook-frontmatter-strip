@@ -1,32 +1,36 @@
-use serde_json::{Map, Value};
-
 /// Strip YAML frontmatter from a Markdown string.
 /// Frontmatter must be at the very top of the file, delimited by `---` fences.
-pub fn strip_frontmatter(content: &str) -> String {
+use serde_json::{Map, Value};
+
+fn strip_frontmatter(content: &str) -> String {
+    let has_trailing_nl = content.ends_with('\n');
     let lines: Vec<&str> = content.lines().collect();
     if lines.is_empty() {
         return content.to_string();
     }
 
-    // Helper: does this line look like a YAML key: value?
     fn is_yaml_kv(line: &str) -> bool {
         let trimmed = line.trim();
-        if trimmed.is_empty() {
+        if trimmed.is_empty() || trimmed == "---" {
             return false;
         }
-        // crude but effective: starts with an identifier-ish token followed by :
         if let Some(colon_idx) = trimmed.find(':') {
             let (key, _) = trimmed.split_at(colon_idx);
-            // avoid matching things like "http://"
+            let key = key.trim();
+            if key.is_empty() {
+                return false;
+            }
+            if key.contains("://") {
+                return false;
+            }
             key.chars()
                 .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
-                && !key.is_empty()
         } else {
             false
         }
     }
 
-    // 1) Skip leading empty lines
+    // Skip leading empty lines
     let mut idx = 0;
     while idx < lines.len() && lines[idx].trim().is_empty() {
         idx += 1;
@@ -40,7 +44,6 @@ pub fn strip_frontmatter(content: &str) -> String {
     if lines[idx].trim() == "---" {
         let start_idx = idx;
 
-        // Find matching closing ---
         let end_idx = lines
             .iter()
             .skip(start_idx + 1)
@@ -50,12 +53,18 @@ pub fn strip_frontmatter(content: &str) -> String {
         let body_start = if let Some(end_idx) = end_idx {
             end_idx + 1
         } else {
-            // No closing fence: treat everything after the first fence as body
             start_idx + 1
         };
 
-        let body = lines[body_start..].join("\n");
-        return body.trim_start_matches('\n').to_string();
+        let mut body = lines[body_start..].join("\n");
+        // Remove leading blank line from body if present
+        while body.starts_with('\n') {
+            body.remove(0);
+        }
+        if has_trailing_nl && !body.ends_with('\n') {
+            body.push('\n');
+        }
+        return body;
     }
 
     // Case B: unfenced YAML-like lines at the very top
@@ -66,61 +75,60 @@ pub fn strip_frontmatter(content: &str) -> String {
         i += 1;
     }
 
-    if front_lines > 0 {
-        // Optionally skip a single blank line after the header block
+    if front_lines >= 2 {
         if i < lines.len() && lines[i].trim().is_empty() {
             i += 1;
         }
-        let body = lines[i..].join("\n");
-        return body.trim_start_matches('\n').to_string();
+        let mut body = lines[i..].join("\n");
+        while body.starts_with('\n') {
+            body.remove(0);
+        }
+        if has_trailing_nl && !body.ends_with('\n') {
+            body.push('\n');
+        }
+        return body;
     }
 
-    // Otherwise, no frontmatter detected
     content.to_string()
 }
-/// Process a chapter object, removing YAML frontmatter from its content
+
 fn process_chapter(chapter: &mut Map<String, Value>) {
     if let Some(Value::String(content)) = chapter.get_mut("content") {
-        let stripped = strip_frontmatter(content);
-        *content = stripped.trim_matches('\n').to_string() + "\n";
+        *content = strip_frontmatter(content);
     }
 
     if let Some(Value::Array(sub_items)) = chapter.get_mut("sub_items") {
-        for item in sub_items.iter_mut() {
+        for item in sub_items {
             process_book_item(item);
         }
     }
 }
-/// Recursively process all mdBook items (chapters, parts, sections)
+
 pub fn process_book_item(value: &mut Value) {
     match value {
         Value::Object(map) => {
-            // Process Chapter if present
             if let Some(Value::Object(chapter)) = map.get_mut("Chapter") {
                 process_chapter(chapter);
             }
-            // Also process Part (may contain sections)
-            if let Some(Value::Object(part)) = map.get_mut("Part") {
-                for key in &["sections", "items", "sub_items"] {
-                    if let Some(Value::Array(children)) = part.get_mut(*key) {
-                        for child in children.iter_mut() {
-                            process_book_item(child);
-                        }
-                    }
+
+            if let Some(Value::Object(part)) = map.get_mut("Part")
+                && let Some(Value::Array(children)) = part.get_mut("sections")
+            {
+                for child in children {
+                    process_book_item(child);
                 }
             }
 
-            // Recurse into any arrays
             for key in &["sections", "items", "sub_items"] {
                 if let Some(Value::Array(children)) = map.get_mut(*key) {
-                    for child in children.iter_mut() {
+                    for child in children {
                         process_book_item(child);
                     }
                 }
             }
         }
         Value::Array(arr) => {
-            for item in arr.iter_mut() {
+            for item in arr {
                 process_book_item(item);
             }
         }
