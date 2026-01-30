@@ -1,6 +1,6 @@
 [package]
 name = "mdbook-frontmatter-strip"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 description = "mdBook preprocessor that strips YAML frontmatter from chapters"
 license = "Apache-2.0"
@@ -10,10 +10,10 @@ keywords = ["mdbook", "rss", "feed", "preprocessor", "blog"]
 categories = ["command-line-utilities", "web-programming"]
 
 [dependencies]
-anyhow = "1"
+anyhow = "1.0.100"
 serde = {version = "1.0.228", features = ["derive"]}
-serde_json = "1"
-serde_yaml = "0.9.34"
+serde_json = "1.0.149"
+serde_yml = "0.0.12"
 
 [dev-dependencies]
 serde_json = "1"
@@ -21,3 +21,11 @@ serde_json = "1"
 [[bin]]
 name = "mdbook-frontmatter-strip"
 path = "src/main.rs"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+debug = false

@@ -9,18 +9,15 @@ fn strip_frontmatter(content: &str) -> String {
         return content.to_string();
     }
 
-    fn is_yaml_kv(line: &str) -> bool {
+    // Define as a closure instead of a function
+    let is_yaml_kv = |line: &str| -> bool {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed == "---" {
             return false;
         }
         if let Some(colon_idx) = trimmed.find(':') {
-            let (key, _) = trimmed.split_at(colon_idx);
-            let key = key.trim();
-            if key.is_empty() {
-                return false;
-            }
-            if key.contains("://") {
+            let key = trimmed[..colon_idx].trim();
+            if key.is_empty() || key.contains("://") {
                 return false;
             }
             key.chars()
@@ -28,7 +25,7 @@ fn strip_frontmatter(content: &str) -> String {
         } else {
             false
         }
-    }
+    };
 
     // Skip leading empty lines
     let mut idx = 0;
@@ -50,11 +47,7 @@ fn strip_frontmatter(content: &str) -> String {
             .position(|line| line.trim() == "---")
             .map(|rel| start_idx + 1 + rel);
 
-        let body_start = if let Some(end_idx) = end_idx {
-            end_idx + 1
-        } else {
-            start_idx + 1
-        };
+        let body_start = end_idx.map_or_else(|| start_idx + 1, |end_idx| end_idx + 1);
 
         let mut body = lines[body_start..].join("\n");
         // Remove leading blank line from body if present

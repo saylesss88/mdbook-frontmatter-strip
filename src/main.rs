@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use mdbook_frontmatter_strip::process_book_item;
 use serde_json::Value;
 use std::io::{self, Read, Write};
@@ -20,7 +20,7 @@ fn main() -> Result<()> {
         }
 
         // Manual CLI: `--version` or `-V`
-        Some("--version") | Some("-V") => {
+        Some("--version" | "-V") => {
             print_version();
             Ok(())
         }
