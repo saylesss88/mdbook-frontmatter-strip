@@ -1,3 +1,4 @@
+//! Integration tests
 use mdbook_frontmatter_strip::process_book_item;
 use serde_json::json;
 
