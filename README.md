@@ -4,6 +4,11 @@ An mdBook preprocessor that strips YAML frontmatter from chapters before they
 are rendered, so metadata like `title`, `date`, or `tags` does not appear in the
 generated HTML.
 
+This crate is actively developed and maintained, issues and PRs are welcome.
+
+It's intentionally lightweight: just two dependencies (`serde_json` and
+`anyhow`), so it adds minimal weight to your build.
+
 ---
 
 ## Installation
@@ -23,8 +28,7 @@ and run it.
 
 Tested with:
 
-- mdbook v0.5.1
-
+- mdbook v0.5.4
 - Rust editions 2020 & 2024
 
 ## Usage
@@ -47,15 +51,14 @@ mdbook build
 ## Behavior
 
 - Supports fenced `---` YAML frontmatter at the top.
-
 - Supports unfenced YAML only when there are at least 2 consecutive `key: value`
   lines.
-
 - URLs like `http://example.com` at the top are not treated as frontmatter.
 
-> This crate includes integration tests that exercise fenced and unfenced
-> frontmatter stripping, nested chapters, and common edge cases (like top-level
-> URLs), to keep the behavior stable across mdBook updates.
+> Behavior is covered by both unit tests (fenced/unfenced detection, edge cases
+> like top-level URLs) and integration tests (nested chapters, parts, and the
+> full preprocessor pipeline), so behavior stays stable across mdBook updates
+> and future changes to this crate.
 
 ---
 
