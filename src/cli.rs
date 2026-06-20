@@ -47,3 +47,49 @@ pub fn print_usage_and_exit(unknown_arg: &str) -> ! {
     eprintln!("  mdbook-frontmatter-strip --version");
     process::exit(1);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_args_is_preprocess() {
+        let args: Vec<String> = vec![];
+        assert!(matches!(parse_args(args.into_iter()), Command::Preprocess));
+    }
+
+    #[test]
+    fn supports_html_captures_renderer() {
+        let args = vec!["supports".to_string(), "html".to_string()];
+        match parse_args(args.into_iter()) {
+            Command::Supports { renderer } => assert_eq!(renderer, "html"),
+            _ => panic!("expected Command::Supports"),
+        }
+    }
+
+    #[test]
+    fn supports_with_no_renderer_defaults_to_empty() {
+        let args = vec!["supports".to_string()];
+        match parse_args(args.into_iter()) {
+            Command::Supports { renderer } => assert_eq!(renderer, ""),
+            _ => panic!("expected Command::Supports"),
+        }
+    }
+
+    #[test]
+    fn dash_v_and_double_dash_version_both_recognized() {
+        for flag in ["--version", "-V"] {
+            let args = vec![flag.to_string()];
+            assert!(matches!(parse_args(args.into_iter()), Command::Version));
+        }
+    }
+
+    #[test]
+    fn unrecognized_arg_is_unknown() {
+        let args = vec!["frobnicate".to_string()];
+        match parse_args(args.into_iter()) {
+            Command::Unknown { arg } => assert_eq!(arg, "frobnicate"),
+            _ => panic!("expected Command::Unknown"),
+        }
+    }
+}

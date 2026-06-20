@@ -62,3 +62,86 @@ fn write_output(mut output: impl Write, book: &Value) -> Result<()> {
     writeln!(output)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn rejects_wrong_length_array() {
+        let input = "[{}]"; // only one element, not [context, book]
+        let err = parse_input(input).unwrap_err();
+        assert!(err.to_string().contains("got len = 1"));
+    }
+
+    #[test]
+    fn rejects_invalid_json() {
+        let err = parse_input("not json").unwrap_err();
+        assert!(err.to_string().contains("Failed to parse input JSON"));
+    }
+
+    #[test]
+    fn processes_sections_key() {
+        let mut book = json!({
+            "sections": [
+                {
+                    "Chapter": {
+                        "content": "---\ntitle: Hi\n---\nbody\n",
+                        "sub_items": []
+                    }
+                }
+            ]
+        });
+        process_book(&mut book).unwrap();
+        assert_eq!(book["sections"][0]["Chapter"]["content"], "body\n");
+    }
+
+    #[test]
+    fn processes_items_key() {
+        let mut book = json!({
+            "items": [
+                {
+                    "Chapter": {
+                        "content": "---\ntitle: Hi\n---\nbody\n",
+                        "sub_items": []
+                    }
+                }
+            ]
+        });
+        process_book(&mut book).unwrap();
+        assert_eq!(book["items"][0]["Chapter"]["content"], "body\n");
+    }
+
+    #[test]
+    fn errors_when_neither_key_present() {
+        let mut book = json!({});
+        let err = process_book(&mut book).unwrap_err();
+        assert!(err.to_string().contains("no 'sections' or 'items'"));
+    }
+
+    #[test]
+    fn end_to_end_strips_frontmatter_and_writes_book_only() {
+        let input = json!([
+            { "root": "/book" },
+            {
+                "sections": [
+                    {
+                        "Chapter": {
+                            "content": "---\ntitle: Hi\n---\nbody\n",
+                            "sub_items": []
+                        }
+                    }
+                ]
+            }
+        ])
+        .to_string();
+
+        let mut output = Vec::new();
+        run(input.as_bytes(), &mut output).unwrap();
+
+        let result: Value = serde_json::from_slice(&output).unwrap();
+        // Output should be the book only (no context wrapper array).
+        assert_eq!(result["sections"][0]["Chapter"]["content"], "body\n");
+    }
+}
