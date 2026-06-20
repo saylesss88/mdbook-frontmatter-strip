@@ -1,6 +1,6 @@
 [package]
 name = "mdbook-frontmatter-strip"
-version = "1.2.0"
+version = "1.1.2"
 edition = "2024"
 description = "mdBook preprocessor that strips YAML frontmatter from chapters"
 license = "Apache-2.0"
