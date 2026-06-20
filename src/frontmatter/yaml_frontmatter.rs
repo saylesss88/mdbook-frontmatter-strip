@@ -131,11 +131,16 @@ mod tests {
         assert_eq!(strip_frontmatter(input), input);
     }
 
-    // #[test]
-    // fn unclosed_fence_strips_everything_after_opening() {
-    //     let input = "---\ntitle: Hi\nbody without closing fence\n";
-    //     assert_eq!(strip_frontmatter(input), "");
-    // }
+    #[test]
+    fn unclosed_fence_only_strips_opening_marker() {
+        // With no closing `---`, only the opening fence line is removed.
+        // everything after it (including what looks like YAML) becomes body.
+        let input = "---\ntitle: Hi\nbody without closing fence\n";
+        assert_eq!(
+            strip_frontmatter(input),
+            "title: Hi\nbody without closing fence\n"
+        );
+    }
 
     #[test]
     fn preserves_missing_trailing_newline() {
