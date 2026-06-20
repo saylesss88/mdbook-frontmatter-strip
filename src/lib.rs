@@ -1,7 +1,8 @@
 //! Strip YAML frontmatter from Markdown chapter content in an mdbook book.
 //!
-//! - [`frontmatter`] contains the pure string-level stripping logic.
-//! - [`book`] walks the mdbook `BookItem` JSON tree and applies it.
+//! Internally split into a `frontmatter` module (pure string-level stripping
+//! logic) and a `book` module (walks the mdbook `BookItem` JSON tree and
+//! applies it). Only [`process_book_item`] is exposed publicly.
 
 mod book;
 mod frontmatter;
