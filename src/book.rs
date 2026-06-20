@@ -55,3 +55,78 @@ pub fn process_book_item(value: &mut Value) {
         _ => {}
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn strips_frontmatter_from_chapter_content() {
+        let mut value = json!({
+            "Chapter": {
+                "content": "---\ntitle: Hi\n---\nbody\n",
+                "sub_items": []
+            }
+        });
+        process_book_item(&mut value);
+        assert_eq!(value["Chapter"]["content"], "body\n");
+    }
+
+    #[test]
+    fn recurses_into_sub_items() {
+        let mut value = json!({
+            "Chapter": {
+                "content": "no frontmatter\n",
+                "sub_items": [
+                    {
+                        "Chapter": {
+                            "content": "---\ntitle: Nested\n---\nnested body\n",
+                            "sub_items": []
+                        }
+                    }
+                ]
+            }
+        });
+        process_book_item(&mut value);
+        assert_eq!(
+            value["Chapter"]["sub_items"][0]["Chapter"]["content"],
+            "nested body\n"
+        );
+    }
+
+    #[test]
+    fn recurses_into_part_sections() {
+        let mut value = json!({
+            "Part": {
+                "sections": [
+                    {
+                        "Chapter": {
+                            "content": "---\ntitle: In Part\n---\npart body\n",
+                            "sub_items": []
+                        }
+                    }
+                ]
+            }
+        });
+        process_book_item(&mut value);
+        assert_eq!(
+            value["Part"]["sections"][0]["Chapter"]["content"],
+            "part body\n"
+        );
+    }
+
+    #[test]
+    fn recurses_into_top_level_array() {
+        let mut value = json!([
+            {
+                "Chapter": {
+                    "content": "---\ntitle: A\n---\nbody a\n",
+                    "sub_items": []
+                }
+            }
+        ]);
+        process_book_item(&mut value);
+        assert_eq!(value[0]["Chapter"]["content"], "body a\n");
+    }
+}

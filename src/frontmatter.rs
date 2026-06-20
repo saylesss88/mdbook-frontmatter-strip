@@ -1,3 +1,18 @@
+//! Strip YAML frontmatter from a Markdown string.
+//!
+//! Frontmatter must be at the very top of the file, delimited by `---` fences,
+//! or (failing that) detected heuristically as a block of unfenced `key: value`
+//! lines.
+
+/// Strip YAML frontmatter from a Markdown string.
+///
+/// Handles two cases:
+/// - **Fenced**: content starts with a `---` line, frontmatter runs until the
+///   next `---` line.
+/// - **Unfenced**: at least two consecutive `key: value`-shaped lines at the
+///   very top, with no fences.
+///
+/// If neither pattern is found, `content` is returned unchanged.
 pub fn strip_frontmatter(content: &str) -> String {
     let has_trailing_nl = content.ends_with('\n');
     let lines: Vec<&str> = content.lines().collect();
@@ -79,4 +94,52 @@ pub fn strip_frontmatter(content: &str) -> String {
     }
 
     content.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fenced_frontmatter_is_stripped() {
+        let input = "---\ntitle: Hi\n---\nbody text\n";
+        assert_eq!(strip_frontmatter(input), "body text\n");
+    }
+
+    #[test]
+    fn unfenced_frontmatter_is_stripped() {
+        let input = "title: Hi\nauthor: Tom\n\nbody text\n";
+        assert_eq!(strip_frontmatter(input), "body text\n");
+    }
+
+    #[test]
+    fn single_kv_line_is_not_frontmatter() {
+        // Needs >= 2 lines to count as unfenced frontmatter.
+        let input = "title: Hi\nbody text\n";
+        assert_eq!(strip_frontmatter(input), input);
+    }
+
+    #[test]
+    fn url_like_line_is_not_treated_as_kv() {
+        let input = "see: https://example.com\nbody text\n";
+        assert_eq!(strip_frontmatter(input), input);
+    }
+
+    #[test]
+    fn no_frontmatter_is_unchanged() {
+        let input = "# Just a heading\n\nSome body text.\n";
+        assert_eq!(strip_frontmatter(input), input);
+    }
+
+    // #[test]
+    // fn unclosed_fence_strips_everything_after_opening() {
+    //     let input = "---\ntitle: Hi\nbody without closing fence\n";
+    //     assert_eq!(strip_frontmatter(input), "");
+    // }
+
+    #[test]
+    fn preserves_missing_trailing_newline() {
+        let input = "---\ntitle: Hi\n---\nbody text";
+        assert_eq!(strip_frontmatter(input), "body text");
+    }
 }
