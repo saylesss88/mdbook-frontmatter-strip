@@ -4,96 +4,82 @@
 //! or (failing that) detected heuristically as a block of unfenced `key: value`
 //! lines.
 
+fn is_yaml_kv(line: &str) -> bool {
+    let trimmed = line.trim();
+    if trimmed.is_empty() || trimmed == "---" {
+        return false;
+    }
+    if let Some(colon_idx) = trimmed.find(':') {
+        let key = trimmed[..colon_idx].trim();
+        if key.is_empty() || key.contains("://") {
+            return false;
+        }
+        key.chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    } else {
+        false
+    }
+}
+
+fn normalize_body(lines: &[&str], has_trailing_nl: bool) -> String {
+    let mut body = lines.join("\n");
+    // Trim leading blank lines
+    while body.starts_with('\n') {
+        body.remove(0);
+    }
+    if has_trailing_nl && !body.ends_with('\n') {
+        body.push('\n');
+    }
+    body
+}
+
+/// Returns the index into `lines` where the body starts if fenced frontmatter
+/// (`---` ... `---`) is detected, starting from `start`.
+fn fenced_body_start(lines: &[&str], start: usize) -> Option<usize> {
+    if lines.get(start)?.trim() != "---" {
+        return None;
+    }
+    let end = lines
+        .iter()
+        .skip(start + 1)
+        .position(|l| l.trim() == "---")
+        .map(|rel| start + 1 + rel);
+    Some(end.map_or(start + 1, |e| e + 1))
+}
+
+/// Returns the index into `lines` where the body starts if unfenced YAML-like
+/// lines (≥2 consecutive `key: value` lines) are detected, starting from `start`.
+fn unfenced_body_start(lines: &[&str], start: usize) -> Option<usize> {
+    let count = lines[start..].iter().take_while(|l| is_yaml_kv(l)).count();
+    if count < 2 {
+        return None;
+    }
+    let mut i = start + count;
+    // Skip one optional blank separator line
+    if lines.get(i).is_some_and(|l| l.trim().is_empty()) {
+        i += 1;
+    }
+    Some(i)
+}
+
 /// Strip YAML frontmatter from a Markdown string.
-///
-/// Handles two cases:
-/// - **Fenced**: content starts with a `---` line, frontmatter runs until the
-///   next `---` line.
-/// - **Unfenced**: at least two consecutive `key: value`-shaped lines at the
-///   very top, with no fences.
-///
-/// If neither pattern is found, `content` is returned unchanged.
 pub fn strip_frontmatter(content: &str) -> String {
     let has_trailing_nl = content.ends_with('\n');
     let lines: Vec<&str> = content.lines().collect();
-    if lines.is_empty() {
-        return content.to_string();
-    }
 
-    // Define as a closure instead of a function
-    let is_yaml_kv = |line: &str| -> bool {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed == "---" {
-            return false;
-        }
-        if let Some(colon_idx) = trimmed.find(':') {
-            let key = trimmed[..colon_idx].trim();
-            if key.is_empty() || key.contains("://") {
-                return false;
-            }
-            key.chars()
-                .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
-        } else {
-            false
-        }
+    // Skip leading blank lines
+    let start = lines.iter().position(|l| !l.trim().is_empty());
+    let Some(start) = start else {
+        return content.to_string();
     };
 
-    // Skip leading empty lines
-    let mut idx = 0;
-    while idx < lines.len() && lines[idx].trim().is_empty() {
-        idx += 1;
-    }
+    let body_start =
+        fenced_body_start(&lines, start).or_else(|| unfenced_body_start(&lines, start));
 
-    if idx >= lines.len() {
-        return content.to_string();
-    }
-
-    // Case A: fenced frontmatter starting with ---
-    if lines[idx].trim() == "---" {
-        let start_idx = idx;
-
-        let end_idx = lines
-            .iter()
-            .skip(start_idx + 1)
-            .position(|line| line.trim() == "---")
-            .map(|rel| start_idx + 1 + rel);
-
-        let body_start = end_idx.map_or_else(|| start_idx + 1, |end_idx| end_idx + 1);
-
-        let mut body = lines[body_start..].join("\n");
-        // Remove leading blank line from body if present
-        while body.starts_with('\n') {
-            body.remove(0);
-        }
-        if has_trailing_nl && !body.ends_with('\n') {
-            body.push('\n');
-        }
-        return body;
-    }
-
-    // Case B: unfenced YAML-like lines at the very top
-    let mut front_lines = 0;
-    let mut i = idx;
-    while i < lines.len() && is_yaml_kv(lines[i]) {
-        front_lines += 1;
-        i += 1;
-    }
-
-    if front_lines >= 2 {
-        if i < lines.len() && lines[i].trim().is_empty() {
-            i += 1;
-        }
-        let mut body = lines[i..].join("\n");
-        while body.starts_with('\n') {
-            body.remove(0);
-        }
-        if has_trailing_nl && !body.ends_with('\n') {
-            body.push('\n');
-        }
-        return body;
-    }
-
-    content.to_string()
+    body_start.map_or_else(
+        || content.to_string(),
+        |i| normalize_body(&lines[i..], has_trailing_nl),
+    )
 }
 
 #[cfg(test)]
