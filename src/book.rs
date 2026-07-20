@@ -21,28 +21,25 @@ fn process_chapter(chapter: &mut Map<String, Value>) {
 /// frontmatter from every `Chapter`'s content.
 ///
 /// Handles the `Chapter` and `Part` variants explicitly (mdbook's
-/// `BookItem` enum), plus a few common container keys (`sections`, `items`,
-/// `sub_items`) so the walk degrades gracefully across mdbook JSON-shape
-/// variations.
+/// `BookItem` enum), plus a few common container keys (`items`, `sub_items`)
+/// so the walk degrades gracefully across mdbook JSON-shape variations
 pub fn process_book_item(value: &mut Value) {
     match value {
         Value::Object(map) => {
             if let Some(Value::Object(chapter)) = map.get_mut("Chapter") {
                 process_chapter(chapter);
-            }
-
-            if let Some(Value::Object(part)) = map.get_mut("Part")
-                && let Some(Value::Array(children)) = part.get_mut("sections")
-            {
-                for child in children {
-                    process_book_item(child);
+                if let Some(Value::Array(sub_items)) = chapter.get_mut("sub_items") {
+                    for child in sub_items {
+                        process_book_item(child);
+                    }
                 }
             }
-
-            for key in &["sections", "items", "sub_items"] {
-                if let Some(Value::Array(children)) = map.get_mut(*key) {
-                    for child in children {
-                        process_book_item(child);
+            if let Some(Value::Object(part)) = map.get_mut("Part") {
+                for key in &["items", "sub_items"] {
+                    if let Some(Value::Array(children)) = part.get_mut(*key) {
+                        for child in children {
+                            process_book_item(child);
+                        }
                     }
                 }
             }
@@ -96,10 +93,10 @@ mod tests {
     }
 
     #[test]
-    fn recurses_into_part_sections() {
+    fn recurses_into_part_items() {
         let mut value = json!({
             "Part": {
-                "sections": [
+                "items": [
                     {
                         "Chapter": {
                             "content": "---\ntitle: In Part\n---\npart body\n",
@@ -111,7 +108,7 @@ mod tests {
         });
         process_book_item(&mut value);
         assert_eq!(
-            value["Part"]["sections"][0]["Chapter"]["content"],
+            value["Part"]["items"][0]["Chapter"]["content"],
             "part body\n"
         );
     }

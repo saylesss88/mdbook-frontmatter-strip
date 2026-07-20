@@ -120,7 +120,7 @@ title: Nested
     let mut book = json!({
         "Part": {
             "name": "p",
-            "sections": [
+            "items": [
                 {
                     "Chapter": {
                         "name": "outer",
@@ -142,10 +142,10 @@ title: Nested
 
     process_book_item(&mut book);
 
-    let outer = book["Part"]["sections"][0]["Chapter"]["content"]
+    let outer = book["Part"]["items"][0]["Chapter"]["content"]
         .as_str()
         .unwrap();
-    let inner = book["Part"]["sections"][0]["Chapter"]["sub_items"][0]["Chapter"]["content"]
+    let inner = book["Part"]["items"][0]["Chapter"]["sub_items"][0]["Chapter"]["content"]
         .as_str()
         .unwrap();
 

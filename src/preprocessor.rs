@@ -3,7 +3,6 @@
 //! JSON back to stdout.
 
 use anyhow::{Result, anyhow};
-use mdbook_frontmatter_strip::process_book_item;
 use serde_json::Value;
 use std::io::{self, Read, Write};
 
@@ -36,22 +35,13 @@ fn parse_input(input: &str) -> Result<Vec<Value>> {
 }
 
 /// Strip frontmatter from every chapter in the book, in place.
-///
-/// mdBook's main entry point is either `sections` or `items` depending on
-/// version (0.5.x uses `sections`).
 fn process_book(book: &mut Value) -> Result<()> {
-    if let Some(Value::Array(sections)) = book.get_mut("sections") {
-        for section in sections.iter_mut() {
-            process_book_item(section);
-        }
-    } else if let Some(Value::Array(items)) = book.get_mut("items") {
+    if let Some(Value::Array(items)) = book.get_mut("items") {
         for item in items.iter_mut() {
-            process_book_item(item);
+            mdbook_frontmatter_strip::process_book_item(item);
         }
     } else {
-        return Err(anyhow!(
-            "Book JSON has no 'sections' or 'items'; cannot process"
-        ));
+        return Err(anyhow!("Book JSON has no 'items'; cannot process"));
     }
     Ok(())
 }
@@ -82,22 +72,6 @@ mod tests {
     }
 
     #[test]
-    fn processes_sections_key() {
-        let mut book = json!({
-            "sections": [
-                {
-                    "Chapter": {
-                        "content": "---\ntitle: Hi\n---\nbody\n",
-                        "sub_items": []
-                    }
-                }
-            ]
-        });
-        process_book(&mut book).unwrap();
-        assert_eq!(book["sections"][0]["Chapter"]["content"], "body\n");
-    }
-
-    #[test]
     fn processes_items_key() {
         let mut book = json!({
             "items": [
@@ -114,18 +88,11 @@ mod tests {
     }
 
     #[test]
-    fn errors_when_neither_key_present() {
-        let mut book = json!({});
-        let err = process_book(&mut book).unwrap_err();
-        assert!(err.to_string().contains("no 'sections' or 'items'"));
-    }
-
-    #[test]
     fn end_to_end_strips_frontmatter_and_writes_book_only() {
         let input = json!([
             { "root": "/book" },
             {
-                "sections": [
+                "items": [
                     {
                         "Chapter": {
                             "content": "---\ntitle: Hi\n---\nbody\n",
@@ -142,6 +109,6 @@ mod tests {
 
         let result: Value = serde_json::from_slice(&output).unwrap();
         // Output should be the book only (no context wrapper array).
-        assert_eq!(result["sections"][0]["Chapter"]["content"], "body\n");
+        assert_eq!(result["items"][0]["Chapter"]["content"], "body\n");
     }
 }
