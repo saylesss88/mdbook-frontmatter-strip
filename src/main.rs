@@ -19,9 +19,8 @@ fn main() -> Result<()> {
         Command::Supports { renderer } => {
             if renderer == "html" {
                 process::exit(0);
-            } else {
-                process::exit(1);
             }
+            process::exit(1);
         }
         Command::Version => {
             cli::print_version();
