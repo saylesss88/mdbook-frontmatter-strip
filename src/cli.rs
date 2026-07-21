@@ -7,7 +7,7 @@
 use std::process;
 
 const USAGE: &str = "\
-      mdbook-frontmatter-strip                     # mdBook preprocessor
+      mdbook-frontmatter-strip            
       mdbook-frontmatter-strip supports <renderer>
       mdbook-frontmatter-strip --version
 ";

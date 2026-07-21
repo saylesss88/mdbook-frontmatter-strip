@@ -2,13 +2,16 @@
 
 [![Crates.io](https://img.shields.io/crates/v/mdbook-frontmatter-strip.svg)](https://crates.io/crates/mdbook-frontmatter-strip)
 [![Documentation](https://docs.rs/mdbook-frontmatter-strip/badge.svg)](https://docs.rs/mdbook-frontmatter-strip)
-![coverage](https://img.shields.io/badge/coverage-91.95%25-brightgreen)
+<!-- ![coverage](https://img.shields.io/badge/coverage-91.95%25-brightgreen) -->
+![coverage](./coverage-report/badges/plastic.svg)
 
-An mdBook preprocessor that strips YAML frontmatter from chapters before they
+An `mdBook` preprocessor that strips YAML frontmatter from chapters before they
 are rendered, so metadata like `title`, `date`, or `tags` does not appear in the
 generated HTML.
 
-This crate is actively developed and maintained, issues and PRs are welcome.
+This crate is actively developed and maintained, issues and PRs are welcome. If
+anyone wants a different style frontmatter, e.g. `+++`, etc. submit an issue and
+I'll add it.
 
 It's intentionally lightweight: just two dependencies (`serde_json` and
 `anyhow`), so it adds minimal weight to your build.
@@ -27,13 +30,8 @@ Check your version:
 mdbook-frontmatter-strip --version
 ```
 
-`mdbook-frontmatter-strip` must be on your `PATH` so that `mdbook` can discover
+`mdbook-frontmatter-strip` must be on your `PATH` so that `mdBook` can discover
 and run it.
-
-Tested with:
-
-- mdbook v0.5.4
-- Rust editions 2020 & 2024
 
 ## Usage
 
@@ -61,7 +59,7 @@ mdbook build
 
 > Behavior is covered by both unit tests (fenced/unfenced detection, edge cases
 > like top-level URLs) and integration tests (nested chapters, parts, and the
-> full preprocessor pipeline), so behavior stays stable across mdBook updates
+> full preprocessor pipeline), so behavior stays stable across `mdBook` updates
 > and future changes to this crate.
 
 ---
