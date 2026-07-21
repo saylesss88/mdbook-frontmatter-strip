@@ -11,8 +11,8 @@ categories = ["command-line-utilities", "text-processing"]
 exclude = [".github", "tests", "coverage-report","*.profdata", "*.profraw"]
 
 [dependencies]
-anyhow = {version = "1.0.102", default-features = false}
-serde_json = {version = "1.0.150", default-features = false, features = ["std"]}
+anyhow = {version = "1.0.104", default-features = false}
+serde_json = {version = "1.0.151", default-features = false, features = ["std"]}
 
 [[bin]]
 name = "mdbook-frontmatter-strip"
