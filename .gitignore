@@ -36,3 +36,9 @@ result
 # Optional: ignore Cargo.lock in library crates (common practice)
 # Uncomment the next line if you want to follow this convention:
 # Cargo.lock/target
+
+# Code Test Coverage
+coverage-report/
+coverage.lcov
+*.profraw
+*.profdata

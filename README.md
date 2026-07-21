@@ -1,5 +1,9 @@
 # mdbook-frontmatter-strip
 
+[![Crates.io](https://img.shields.io/crates/v/mdbook-frontmatter-strip.svg)](https://crates.io/crates/mdbook-frontmatter-strip)
+[![Documentation](https://docs.rs/mdbook-frontmatter-strip/badge.svg)](https://docs.rs/mdbook-frontmatter-strip)
+![coverage](https://img.shields.io/badge/coverage-91.95%25-brightgreen)
+
 An mdBook preprocessor that strips YAML frontmatter from chapters before they
 are rendered, so metadata like `title`, `date`, or `tags` does not appear in the
 generated HTML.
