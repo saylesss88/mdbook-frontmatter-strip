@@ -6,6 +6,12 @@
 
 use std::process;
 
+const USAGE: &str = "\
+      mdbook-frontmatter-strip                     # mdBook preprocessor
+      mdbook-frontmatter-strip supports <renderer>
+      mdbook-frontmatter-strip --version
+";
+
 /// What the binary was asked to do, based on the first CLI argument.
 pub enum Command {
     /// mdBook's capability probe: `supports <renderer>`.
@@ -41,10 +47,7 @@ pub fn print_version() {
 /// Print usage information to stderr and exit with status 1.
 pub fn print_usage_and_exit(unknown_arg: &str) -> ! {
     eprintln!("Unknown argument: {unknown_arg}");
-    eprintln!("Usage:");
-    eprintln!("  mdbook-frontmatter-strip                     # mdBook preprocessor");
-    eprintln!("  mdbook-frontmatter-strip supports <renderer>");
-    eprintln!("  mdbook-frontmatter-strip --version");
+    eprintln!("Usage:\n{USAGE}");
     process::exit(1);
 }
 
