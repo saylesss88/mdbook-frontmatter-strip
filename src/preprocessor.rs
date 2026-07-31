@@ -10,7 +10,6 @@ use std::io::{self, Read, Write};
 pub fn run(mut input: impl Read, output: impl Write) -> Result<()> {
     let mut buf = String::new();
     input.read_to_string(&mut buf)?;
-
     let mut values = parse_input(&buf)?;
     process_book(&mut values[1])?;
     write_output(output, &values[1])
