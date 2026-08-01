@@ -1,6 +1,6 @@
 [package]
 name = "mdbook-frontmatter-strip"
-version = "1.1.2"
+version = "1.1.3"
 edition = "2024"
 description = "mdBook preprocessor that strips YAML frontmatter from chapters"
 license = "Apache-2.0"
@@ -8,7 +8,7 @@ repository = "https://github.com/saylesss88/mdbook-frontmatter-strip"
 readme = "README.md"
 keywords = ["mdbook", "frontmatter", "yaml", "preprocessor", "markdown"]
 categories = ["command-line-utilities", "text-processing"]
-exclude = [".github", "tests", "coverage-report","*.profdata", "*.profraw"]
+exclude = [".github", "tests", "coverage-report", "*.profdata", "*.profraw"]
 
 [dependencies]
 anyhow = {version = "1.0.104", default-features = false}
