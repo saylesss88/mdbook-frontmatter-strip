@@ -22,11 +22,9 @@ fn is_yaml_kv(line: &str) -> bool {
 }
 
 fn normalize_body(lines: &[&str], has_trailing_nl: bool) -> String {
-    let mut body = lines.join("\n");
-    // Trim leading blank lines
-    while body.starts_with('\n') {
-        body.remove(0);
-    }
+    let body = lines.join("\n");
+    let body = body.trim_start_matches('n');
+    let mut body = body.to_string();
     if has_trailing_nl && !body.ends_with('\n') {
         body.push('\n');
     }
