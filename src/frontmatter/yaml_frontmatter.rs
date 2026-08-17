@@ -61,6 +61,7 @@ fn unfenced_body_start(lines: &[&str], start: usize) -> Option<usize> {
 }
 
 /// Strip YAML frontmatter from a Markdown string.
+#[must_use]
 pub fn strip_frontmatter(content: &str) -> String {
     let has_trailing_nl = content.ends_with('\n');
     let lines: Vec<&str> = content.lines().collect();
