@@ -7,6 +7,7 @@
 #![deny(missing_docs)]
 
 mod book;
-mod frontmatter;
+/// The actual stripping code
+pub mod frontmatter;
 
 pub use book::process_book_item;
