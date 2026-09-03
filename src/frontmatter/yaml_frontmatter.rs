@@ -4,7 +4,65 @@
 //! or (failing that) detected heuristically as a block of unfenced `key: value`
 //! lines.
 
-fn is_yaml_kv(line: &str) -> bool {
+/// The result of parsing frontmatter from a Markdown string.
+#[derive(Debug)]
+pub struct Frontmatter {
+    /// The raw YAML string between the `---` fences, or the heuristically
+    /// detected `key: value` block. `None` if no frontmatter was found.
+    pub yaml: Option<String>,
+    /// Everything after the frontmatter, with leading blank lines stripped.
+    pub body: String,
+}
+
+/// Parse and return both the frontmatter and body separately.
+///
+/// # Examples
+/// ```
+///
+/// # use mdbook_frontmatter_strip::frontmatter::parse_frontmatter;
+/// let fm = parse_frontmatter("---\ntitle: Hello\n---\n\nBody text.\n");
+/// assert_eq!(fm.yaml.as_deref(), Some("title: Hello"));
+/// assert_eq!(fm.body, "Body text.\n");
+/// ```
+#[must_use]
+pub fn parse_frontmatter(content: &str) -> Frontmatter {
+    let has_trailing_nl = content.ends_with('\n');
+    let lines: Vec<&str> = content.lines().collect();
+
+    let Some(start) = lines.iter().position(|l| !l.trim().is_empty()) else {
+        return Frontmatter {
+            yaml: None,
+            body: content.to_string(),
+        };
+    };
+
+    let body_start =
+        fenced_body_start(&lines, start).or_else(|| unfenced_body_start(&lines, start));
+
+    body_start.map_or_else(
+        || Frontmatter {
+            yaml: None,
+            body: content.to_string(),
+        },
+        |i| {
+            let raw = lines[start..i].join("\n");
+            let yaml = raw
+                .trim_start_matches("---")
+                .trim_end_matches("---")
+                .trim()
+                .to_string();
+
+            Frontmatter {
+                yaml: if yaml.is_empty() { None } else { Some(yaml) },
+                body: normalize_body(&lines[i..], has_trailing_nl),
+            }
+        },
+    )
+}
+
+/// Is this a YAML key-value pair?
+#[must_use]
+pub fn is_yaml_kv(line: &str) -> bool {
     let trimmed = line.trim();
     if trimmed.is_empty() || trimmed == "---" {
         return false;
@@ -63,22 +121,7 @@ fn unfenced_body_start(lines: &[&str], start: usize) -> Option<usize> {
 /// Strip YAML frontmatter from a Markdown string.
 #[must_use]
 pub fn strip_frontmatter(content: &str) -> String {
-    let has_trailing_nl = content.ends_with('\n');
-    let lines: Vec<&str> = content.lines().collect();
-
-    // Skip leading blank lines
-    let start = lines.iter().position(|l| !l.trim().is_empty());
-    let Some(start) = start else {
-        return content.to_string();
-    };
-
-    let body_start =
-        fenced_body_start(&lines, start).or_else(|| unfenced_body_start(&lines, start));
-
-    body_start.map_or_else(
-        || content.to_string(),
-        |i| normalize_body(&lines[i..], has_trailing_nl),
-    )
+    parse_frontmatter(content).body
 }
 
 #[cfg(test)]
@@ -131,5 +174,23 @@ mod tests {
     fn preserves_missing_trailing_newline() {
         let input = "---\ntitle: Hi\n---\nbody text";
         assert_eq!(strip_frontmatter(input), "body text");
+    }
+
+    #[test]
+    fn fenced_yaml_is_returned_without_delimiters() {
+        let fm = parse_frontmatter("---\ntitle: Hi\ndate: 2024\n---\nbody\n");
+        assert_eq!(fm.yaml.as_deref(), Some("title: Hi\ndate: 2024"));
+    }
+
+    #[test]
+    fn unfenced_yaml_is_returned() {
+        let fm = parse_frontmatter("title: Hi\nauthor: Tom\n\nbody\n");
+        assert_eq!(fm.yaml.as_deref(), Some("title: Hi\nauthor: Tom"));
+    }
+
+    #[test]
+    fn no_frontmatter_yields_none_yaml() {
+        let fm = parse_frontmatter("# Heading\n\nbody\n");
+        assert!(fm.yaml.is_none());
     }
 }
