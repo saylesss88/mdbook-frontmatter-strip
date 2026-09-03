@@ -7,6 +7,7 @@
 #![deny(missing_docs)]
 
 mod book;
+pub mod error;
 /// The actual stripping code
 pub mod frontmatter;
 

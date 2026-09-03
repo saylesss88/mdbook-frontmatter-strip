@@ -2,9 +2,10 @@
 //! from stdin, strip frontmatter from every chapter, write the modified book
 //! JSON back to stdout.
 
+use std::io::{self, Read, Write};
+
 use anyhow::{Result, anyhow};
 use serde_json::Value;
-use std::io::{self, Read, Write};
 
 /// Run the full preprocessor: read stdin, process, write stdout.
 pub fn run(mut input: impl Read, output: impl Write) -> Result<()> {
