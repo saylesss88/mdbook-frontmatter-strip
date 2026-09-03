@@ -19,7 +19,7 @@ pub struct Frontmatter {
 /// # Examples
 /// ```
 ///
-/// # use mdbook_frontmatter_strip::frontmatter::parse_frontmatter;
+/// # use mdbook_frontmatter_strip::parse_frontmatter;
 /// let fm = parse_frontmatter("---\ntitle: Hello\n---\n\nBody text.\n");
 /// assert_eq!(fm.yaml.as_deref(), Some("title: Hello"));
 /// assert_eq!(fm.body, "Body text.\n");

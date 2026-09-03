@@ -13,3 +13,4 @@ pub mod error;
 pub mod frontmatter;
 
 pub use book::process_book_item;
+pub use frontmatter::yaml_frontmatter::{Frontmatter, parse_frontmatter, strip_frontmatter};
