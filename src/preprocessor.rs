@@ -68,7 +68,7 @@ mod tests {
     #[test]
     fn rejects_invalid_json() {
         let err = parse_input("not json").unwrap_err();
-        assert!(err.to_string().contains("Failed to parse input JSON"));
+        assert!(err.to_string().contains("JSON error:"));
     }
 
     #[test]
