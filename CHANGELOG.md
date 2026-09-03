@@ -8,6 +8,24 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-03
+
+### Added
+
+- Methods for querying about frontmatter/body.
+- `examples/` with a few examples of using `mdbook_frontmatter_strip` as a lib
+- Custom Error enum and Result type alias
+
+### Changed
+
+- Public API for lib users
+- Removed `anyhow` as a dependency
+
+### Fixed
+
+- Failing tests
+- Clippy lints
+
 ## [1.1.4] - 2026-08-17
 
 ### Added
