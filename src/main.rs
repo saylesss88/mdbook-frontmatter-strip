@@ -9,9 +9,10 @@
 mod cli;
 mod preprocessor;
 
-use anyhow::Result;
 use cli::Command;
 use std::process;
+
+use mdbook_frontmatter_strip::error::Result;
 
 /// Parse CLI arguments and dispatch to the appropriate behavior.
 fn main() -> Result<()> {
