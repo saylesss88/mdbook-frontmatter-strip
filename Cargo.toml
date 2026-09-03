@@ -17,6 +17,15 @@ serde_json = {version = "1.0.151", default-features = false, features = ["std"]}
 name = "mdbook-frontmatter-strip"
 path = "src/main.rs"
 
+[[example]]
+name = "strip"
+
+[[example]]
+name = "parse"
+
+[[example]]
+name = "fm_methods"
+
 [lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
