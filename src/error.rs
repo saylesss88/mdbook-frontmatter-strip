@@ -5,7 +5,9 @@ pub enum Error {
     Io(std::io::Error),
     /// Unclosed YAML fence `---`
     UnclosedFence,
-    Json(serde::json::Error),
+    /// Error serializing or deserializing JSON data
+    Json(serde_json::Error),
+    /// Input that doesn't conform to the expected `[context, book]` structure mdBook sends
     MalformedInput(String),
 }
 
@@ -27,9 +29,8 @@ impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Error::Io(e) => Some(e),
-            Error::UnclosedFence => None,
             Error::Json(e) => Some(e),
-            Error::MalformedInput(_) => None,
+            Error::UnclosedFence | Error::MalformedInput(_) => None,
         }
     }
 }

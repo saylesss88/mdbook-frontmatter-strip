@@ -4,8 +4,9 @@
 
 use std::io::{self, Read, Write};
 
-use anyhow::{Result, anyhow};
 use serde_json::Value;
+
+use mdbook_frontmatter_strip::error::{Error, Result};
 
 /// Run the full preprocessor: read stdin, process, write stdout.
 pub fn run(mut input: impl Read, output: impl Write) -> Result<()> {
@@ -23,13 +24,12 @@ pub fn run_with_stdio() -> Result<()> {
 
 /// Parse the `[context, book]` array mdBook sends on stdin.
 fn parse_input(input: &str) -> Result<Vec<Value>> {
-    let values: Vec<Value> =
-        serde_json::from_str(input).map_err(|e| anyhow!("Failed to parse input JSON: {e}"))?;
+    let values: Vec<Value> = serde_json::from_str(input)?;
     if values.len() != 2 {
-        return Err(anyhow!(
+        return Err(Error::MalformedInput(format!(
             "Expected [context, book] array from mdBook (got len = {})",
             values.len()
-        ));
+        )));
     }
     Ok(values)
 }
@@ -41,7 +41,7 @@ fn process_book(book: &mut Value) -> Result<()> {
             mdbook_frontmatter_strip::process_book_item(item);
         }
     } else {
-        return Err(anyhow!("Book JSON has no 'items'; cannot process"));
+        return Err(Error::MalformedInput("book JSON has no 'items'".into()));
     }
     Ok(())
 }
