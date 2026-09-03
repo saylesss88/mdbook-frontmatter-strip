@@ -14,6 +14,19 @@ pub struct Frontmatter {
     pub body: String,
 }
 
+impl Frontmatter {
+    /// Returns the YAML frontmatter if present, otherwise returns the full body.
+    #[must_use]
+    pub fn yaml_or_body(&self) -> &str {
+        self.yaml.as_deref().unwrap_or(&self.body)
+    }
+
+    /// Returns `true` if frontmatter was detected.
+    #[must_use]
+    pub const fn has_frontmatter(&self) -> bool {
+        self.yaml.is_some()
+    }
+}
 /// Parse and return both the frontmatter and body separately.
 ///
 /// # Examples
