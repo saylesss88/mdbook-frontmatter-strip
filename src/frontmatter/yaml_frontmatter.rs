@@ -58,12 +58,8 @@ pub fn parse_frontmatter(content: &str) -> Frontmatter {
             body: content.to_string(),
         },
         |i| {
-            let raw = lines[start..i].join("\n");
-            let yaml = raw
-                .trim_start_matches("---")
-                .trim_end_matches("---")
-                .trim()
-                .to_string();
+            let yaml = lines[start + 1..i - 1].join("\n");
+            let yaml = yaml.trim().to_string();
 
             Frontmatter {
                 yaml: if yaml.is_empty() { None } else { Some(yaml) },
