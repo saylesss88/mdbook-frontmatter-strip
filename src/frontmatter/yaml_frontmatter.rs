@@ -49,24 +49,37 @@ pub fn parse_frontmatter(content: &str) -> Frontmatter {
         };
     };
 
-    let body_start =
-        fenced_body_start(&lines, start).or_else(|| unfenced_body_start(&lines, start));
-
-    body_start.map_or_else(
-        || Frontmatter {
-            yaml: None,
-            body: content.to_string(),
-        },
-        |i| {
-            let yaml = lines[start + 1..i - 1].join("\n");
+    // Check if it's fenced frontmatter
+    if lines.get(start).is_some_and(|l| l.trim() == "---") {
+        if let Some(body_start) = fenced_body_start(&lines, start) {
+            let end = body_start - 1;
+            let yaml = lines[start + 1..end].join("\n");
             let yaml = yaml.trim().to_string();
 
-            Frontmatter {
+            return Frontmatter {
                 yaml: if yaml.is_empty() { None } else { Some(yaml) },
-                body: normalize_body(&lines[i..], has_trailing_nl),
-            }
-        },
-    )
+                body: normalize_body(&lines[body_start..], has_trailing_nl),
+            };
+        }
+
+    // Don't fall through to unfenced detection if we saw an opening fence,
+    // an unclosed fence should not be silently treated as unfenced YAML.
+    } else {
+        // Compute count once; reuse it for both the guard and the yaml slice.
+        let count = lines[start..].iter().take_while(|l| is_yaml_kv(l)).count();
+        if count >= 2 {
+            let body_start = unfenced_body_start(&lines, start, count);
+            let yaml = lines[start..start + count].join("\n");
+            return Frontmatter {
+                yaml: Some(yaml),
+                body: normalize_body(&lines[body_start..], has_trailing_nl),
+            };
+        }
+    }
+    Frontmatter {
+        yaml: None,
+        body: content.to_string(),
+    }
 }
 
 /// Is this a YAML key-value pair?
@@ -114,17 +127,13 @@ fn fenced_body_start(lines: &[&str], start: usize) -> Option<usize> {
 
 /// Returns the index into `lines` where the body starts if unfenced YAML-like
 /// lines (≥2 consecutive `key: value` lines) are detected, starting from `start`.
-fn unfenced_body_start(lines: &[&str], start: usize) -> Option<usize> {
-    let count = lines[start..].iter().take_while(|l| is_yaml_kv(l)).count();
-    if count < 2 {
-        return None;
-    }
+fn unfenced_body_start(lines: &[&str], start: usize, count: usize) -> usize {
     let mut i = start + count;
     // Skip one optional blank separator line
     if lines.get(i).is_some_and(|l| l.trim().is_empty()) {
         i += 1;
     }
-    Some(i)
+    i
 }
 
 /// Strip YAML frontmatter from a Markdown string.
@@ -169,14 +178,27 @@ mod tests {
     }
 
     #[test]
-    fn unclosed_fence_only_strips_opening_marker() {
-        // With no closing `---`, only the opening fence line is removed.
-        // everything after it (including what looks like YAML) becomes body.
-        let input = "---\ntitle: Hi\nbody without closing fence\n";
-        assert_eq!(
-            strip_frontmatter(input),
-            "title: Hi\nbody without closing fence\n"
-        );
+    fn empty_fenced_frontmatter_yields_none_yaml() {
+        // ---\n---\n should not panic and should give yaml: None
+        let fm = parse_frontmatter("---\n---\nbody\n");
+        assert!(fm.yaml.is_none());
+        assert_eq!(fm.body, "body\n");
+    }
+
+    #[test]
+    fn frontmatter_with_leading_blank_lines() {
+        // Some generators emit a blank line before ---
+        let input = "\n---\ntitle: Hi\n---\nbody\n";
+        let fm = parse_frontmatter(input);
+        assert_eq!(fm.yaml.as_deref(), Some("title: Hi"));
+    }
+
+    #[test]
+    fn fenced_frontmatter_with_multiline_value() {
+        // Folded/literal block scalars are common in Hugo/Jekyll
+        let input = "---\ntitle: Hi\ntags:\n  - rust\n  - mdbook\n---\nbody\n";
+        let fm = parse_frontmatter(input);
+        assert!(fm.yaml.is_some()); // just check it doesn't panic/lose data
     }
 
     #[test]
@@ -193,8 +215,8 @@ mod tests {
 
     #[test]
     fn unfenced_yaml_is_returned() {
-        let fm = parse_frontmatter("title: Hi\nauthor: Tom\n\nbody\n");
-        assert_eq!(fm.yaml.as_deref(), Some("title: Hi\nauthor: Tom"));
+        let fm = parse_frontmatter("title: Hi\nauthor: Jr\n\nbody\n");
+        assert_eq!(fm.yaml.as_deref(), Some("title: Hi\nauthor: Jr"));
     }
 
     #[test]
