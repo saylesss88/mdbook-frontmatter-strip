@@ -112,8 +112,8 @@ fn fenced_body_start(lines: &[&str], start: usize) -> Option<usize> {
         .iter()
         .skip(start + 1)
         .position(|l| l.trim() == "---")
-        .map(|rel| start + 1 + rel);
-    Some(end.map_or(start + 1, |e| e + 1))
+        .map(|rel| start + 1 + rel)?; // require closing fence
+    Some(end + 1)
 }
 
 /// Returns the index into `lines` where the body starts if unfenced YAML-like
