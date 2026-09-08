@@ -7,7 +7,7 @@ use serde_json::{Map, Value};
 /// Strip frontmatter from a single chapter's `content` field, then recurse
 fn process_chapter(chapter: &mut Map<String, Value>) {
     if let Some(Value::String(content)) = chapter.get_mut("content") {
-        *content = strip_frontmatter(content);
+        *content = strip_frontmatter(content).to_string();
     }
 
     if let Some(Value::Array(sub_items)) = chapter.get_mut("sub_items") {

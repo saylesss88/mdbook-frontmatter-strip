@@ -6,19 +6,19 @@
 
 /// The result of parsing frontmatter from a Markdown string.
 #[derive(Debug)]
-pub struct Frontmatter {
+pub struct Frontmatter<'a> {
     /// The raw YAML string between the `---` fences, or the heuristically
     /// detected `key: value` block. `None` if no frontmatter was found.
-    pub yaml: Option<String>,
+    pub yaml: Option<&'a str>,
     /// Everything after the frontmatter, with leading blank lines stripped.
-    pub body: String,
+    pub body: &'a str,
 }
 
-impl Frontmatter {
+impl Frontmatter<'_> {
     /// Returns the YAML frontmatter if present, otherwise returns the full body.
     #[must_use]
     pub fn yaml_or_body(&self) -> &str {
-        self.yaml.as_deref().unwrap_or(&self.body)
+        self.yaml.unwrap_or(&self.body)
     }
 
     /// Returns `true` if frontmatter was detected.
@@ -38,48 +38,66 @@ impl Frontmatter {
 /// assert_eq!(fm.body, "Body text.\n");
 /// ```
 #[must_use]
-pub fn parse_frontmatter(content: &str) -> Frontmatter {
-    let has_trailing_nl = content.ends_with('\n');
-    let lines: Vec<&str> = content.lines().collect();
+pub fn parse_frontmatter(content: &str) -> Frontmatter<'_> {
+    let content = content.trim_start();
 
-    let Some(start) = lines.iter().position(|l| !l.trim().is_empty()) else {
-        return Frontmatter {
-            yaml: None,
-            body: content.to_string(),
-        };
-    };
-
-    // Check if it's fenced frontmatter
-    if lines.get(start).is_some_and(|l| l.trim() == "---") {
-        if let Some(body_start) = fenced_body_start(&lines, start) {
-            let end = body_start - 1;
-            let yaml = lines[start + 1..end].join("\n");
-            let yaml = yaml.trim().to_string();
+    // Try fenced frontmatter first: --- ... ---
+    if content.starts_with("---") {
+        if let Some(rest) = content.strip_prefix("---")
+            && let Some((yaml, body)) = rest.split_once("\n---")
+        {
+            let yaml = yaml.trim();
+            let body = body.trim_start();
 
             return Frontmatter {
                 yaml: if yaml.is_empty() { None } else { Some(yaml) },
-                body: normalize_body(&lines[body_start..], has_trailing_nl),
+                body,
             };
         }
 
-    // Don't fall through to unfenced detection if we saw an opening fence,
-    // an unclosed fence should not be silently treated as unfenced YAML.
-    } else {
-        // Compute count once; reuse it for both the guard and the yaml slice.
-        let count = lines[start..].iter().take_while(|l| is_yaml_kv(l)).count();
-        if count >= 2 {
-            let body_start = unfenced_body_start(&lines, start, count);
-            let yaml = lines[start..start + count].join("\n");
-            return Frontmatter {
-                yaml: Some(yaml),
-                body: normalize_body(&lines[body_start..], has_trailing_nl),
-            };
-        }
+        // Saw an opening fence but no closing fence, Bdo not fall through to
+        // unfenced detection; return the content as-is.
+        return Frontmatter {
+            yaml: None,
+            body: content,
+        };
+    }
+
+    if let Some(yaml_end) = unfenced_yaml_end(content) {
+        let yaml = &content[..yaml_end];
+        let rest = content[yaml_end..].trim_start_matches('\n');
+        // Skip one optional blank separator line between YAML and body.
+        let body = rest.strip_prefix('\n').unwrap_or(rest);
+        return Frontmatter {
+            yaml: Some(yaml),
+            body,
+        };
     }
     Frontmatter {
         yaml: None,
-        body: content.to_string(),
+        body: content,
     }
+}
+
+/// Returns the byte offset of the end of an unfenced YAML block (i.e. ≥2
+/// consecutive `key: value` lines) within `content`, or `None` if no such
+/// block is found.
+fn unfenced_yaml_end(content: &str) -> Option<usize> {
+    let mut offset = 0;
+    let mut kv_count = 0;
+    let mut kv_end = 0;
+
+    for line in content.lines() {
+        if is_yaml_kv(line) {
+            kv_count += 1;
+            kv_end = offset + line.len();
+        } else {
+            break;
+        }
+        offset += line.len() + 1; // +1 for '\n'
+    }
+
+    if kv_count >= 2 { Some(kv_end) } else { None }
 }
 
 /// Is this a YAML key-value pair?
@@ -101,44 +119,9 @@ pub fn is_yaml_kv(line: &str) -> bool {
     }
 }
 
-fn normalize_body(lines: &[&str], has_trailing_nl: bool) -> String {
-    let body = lines.join("\n");
-    let body = body.trim_start_matches('\n');
-    let mut body = body.to_string();
-    if has_trailing_nl && !body.ends_with('\n') {
-        body.push('\n');
-    }
-    body
-}
-
-/// Returns the index into `lines` where the body starts if fenced frontmatter
-/// (`---` ... `---`) is detected, starting from `start`.
-fn fenced_body_start(lines: &[&str], start: usize) -> Option<usize> {
-    if lines.get(start)?.trim() != "---" {
-        return None;
-    }
-    let end = lines
-        .iter()
-        .skip(start + 1)
-        .position(|l| l.trim() == "---")
-        .map(|rel| start + 1 + rel)?; // require closing fence
-    Some(end + 1)
-}
-
-/// Returns the index into `lines` where the body starts if unfenced YAML-like
-/// lines (≥2 consecutive `key: value` lines) are detected, starting from `start`.
-fn unfenced_body_start(lines: &[&str], start: usize, count: usize) -> usize {
-    let mut i = start + count;
-    // Skip one optional blank separator line
-    if lines.get(i).is_some_and(|l| l.trim().is_empty()) {
-        i += 1;
-    }
-    i
-}
-
 /// Strip YAML frontmatter from a Markdown string.
 #[must_use]
-pub fn strip_frontmatter(content: &str) -> String {
+pub fn strip_frontmatter(content: &str) -> &str {
     parse_frontmatter(content).body
 }
 
