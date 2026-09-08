@@ -4,19 +4,6 @@
 use crate::frontmatter::strip_frontmatter;
 use serde_json::{Map, Value};
 
-/// Strip frontmatter from a single chapter's `content` field, then recurse
-fn process_chapter(chapter: &mut Map<String, Value>) {
-    if let Some(Value::String(content)) = chapter.get_mut("content") {
-        *content = strip_frontmatter(content).to_string();
-    }
-
-    if let Some(Value::Array(sub_items)) = chapter.get_mut("sub_items") {
-        for item in sub_items {
-            process_book_item(item);
-        }
-    }
-}
-
 /// Recursively walk an mdbook `BookItem`-shaped [`Value`], stripping
 /// frontmatter from every `Chapter`'s content.
 ///
@@ -27,7 +14,8 @@ pub fn process_book_item(value: &mut Value) {
     match value {
         Value::Object(map) => {
             if let Some(Value::Object(chapter)) = map.get_mut("Chapter") {
-                process_chapter(chapter);
+                strip_chapter_content(chapter);
+                // Recurse into sub_items
                 if let Some(Value::Array(sub_items)) = chapter.get_mut("sub_items") {
                     for child in sub_items {
                         process_book_item(child);
@@ -50,6 +38,16 @@ pub fn process_book_item(value: &mut Value) {
             }
         }
         _ => {}
+    }
+}
+
+/// Strip frontmatter from a chapter's `content` field.
+fn strip_chapter_content(chapter: &mut Map<String, Value>) {
+    if let Some(Value::String(content)) = chapter.get_mut("content") {
+        let stripped = strip_frontmatter(content);
+        if stripped != content {
+            *content = stripped.to_owned();
+        }
     }
 }
 
@@ -125,5 +123,15 @@ mod tests {
         ]);
         process_book_item(&mut value);
         assert_eq!(value[0]["Chapter"]["content"], "body a\n");
+    }
+
+    #[test]
+    fn chapter_without_content_does_not_panic() {
+        let mut value = json!({
+            "Chapter": {
+                "sub_items": []
+            }
+        });
+        process_book_item(&mut value); // should not panic
     }
 }
