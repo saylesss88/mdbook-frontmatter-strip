@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.1] - 2026-09-08
+
+### Changed
+- in process_book use let-else rather than if let + else
+- collapse process_chapter into strip_chapter_content
+- use borrowed fields rather than owned Strings in Frontmatter struct to reduce allocation
+- require both opening and closing --- in fenced_body_start, if no closing fence, treat as no frontmatter
+
+### Fixed
+- fix yaml extraction for fenced and unfenced frontmatter
+- bug in parse_frontmatter
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
