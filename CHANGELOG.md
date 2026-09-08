@@ -2,6 +2,11 @@
 
 ## [1.2.1] - 2026-09-08
 
+### Fixed
+- version
+
+## [1.2.1] - 2026-09-08
+
 ### Changed
 - in process_book use let-else rather than if let + else
 - collapse process_chapter into strip_chapter_content
