@@ -24,7 +24,7 @@ jobs:
         run: cargo install --locked --bin jj jj-cli
 
       - name: Install jj-release
-        run: cargo install jj-release --locked
+        run: cargo install --path /home/jr/tests/jj-release --locked
 
       - name: Attach jj to colocated git repo
         run: jj git init --colocate
