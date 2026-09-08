@@ -24,7 +24,7 @@ pub fn run_with_stdio() -> Result<()> {
 
 /// Parse the `[context, book]` array mdBook sends on stdin.
 fn parse_input(input: &str) -> Result<Vec<Value>> {
-    let values: Vec<Value> = serde_json::from_str(input)?;
+    let values: Vec<Value> = serde_json::from_str(input).map_err(Error::Json)?;
     if values.len() != 2 {
         return Err(Error::MalformedInput(format!(
             "Expected [context, book] array from mdBook (got len = {})",
@@ -36,12 +36,11 @@ fn parse_input(input: &str) -> Result<Vec<Value>> {
 
 /// Strip frontmatter from every chapter in the book, in place.
 fn process_book(book: &mut Value) -> Result<()> {
-    if let Some(Value::Array(items)) = book.get_mut("items") {
-        for item in items.iter_mut() {
-            mdbook_frontmatter_strip::process_book_item(item);
-        }
-    } else {
+    let Some(Value::Array(items)) = book.get_mut("items") else {
         return Err(Error::MalformedInput("book JSON has no 'items'".into()));
+    };
+    for item in items {
+        mdbook_frontmatter_strip::process_book_item(item);
     }
     Ok(())
 }
