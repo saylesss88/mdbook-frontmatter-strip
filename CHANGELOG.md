@@ -3,78 +3,98 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.1] - 2026-09-08
+## [1.2.2] - 2026-09-24
 
-### Changed
-- in process_book use let-else rather than if let + else
-- collapse process_chapter into strip_chapter_content
-- use borrowed fields rather than owned Strings in Frontmatter struct to reduce allocation
-- require both opening and closing --- in fenced_body_start, if no closing fence, treat as no frontmatter
+### 🛠️ Fixed
 
-### Fixed
-- fix yaml extraction for fenced and unfenced frontmatter
-- bug in parse_frontmatter
+- **(CHANGELOG)** partial runs of jj-release made CL out of order
 
-## [Unreleased]
+## [1.2.1] - 2026-09-24
 
-## [1.2.0] - 2026-10-03
+### ♻️ Changed
 
-### Added
+- **(preprocessor)** in process_book use let-else rather than if let + else
+- **(book)** collapse process_chapter into strip_chapter_content
+- **(frontmatter)** use borrowed fields rather than owned Strings in Frontmatter struct to reduce allocation
+- **(frontmatter)** require both opening and closing --- in fenced_body_start, if no closing fence, treat as no frontmatter
 
-- Methods for querying about frontmatter/body.
-- `examples/` with a few examples of using `mdbook_frontmatter_strip` as a lib
-- Custom Error enum and Result type alias
+### 🛠️ Fixed
 
-### Changed
+- version
+- **(frontmatter)** fix yaml extraction for fenced and unfenced frontmatter
+- **(frontmatter)** bug in parse_frontmatter
 
-- Public API for lib users
-- Removed `anyhow` as a dependency
+## [1.2.0] - 2026-09-24
 
-### Fixed
+### ✨ Added
 
-- Failing tests
-- Clippy lints
+- **(examples)** add example demonstrating method use
+- **(frontmatter)** add a few methods
+- add examples/ dir with a short examples
+- add custom Error enum and move away from anyhow
+- add fuzzing with cargo-fuzz and arbitrary
 
-## [1.1.4] - 2026-08-17
+### ♻️ Changed
 
-### Added
+- **(yaml_frontmatter)** make more lib friendly
+- **(main)** replace anyhow with own Result type
+- **(preprocessor)** replace anyhow with custom Result type
 
-- This CHANGELOG
+### 🛠️ Fixed
 
-- `cargo-fuzz`/`arbitrary`: to fuzz with raw bytes and structured input.
+- **(preprocessor)** failing test still asserting on the old anyhow string
+- **(error)** clippy lints
+- **(frontmatter)** had 'n' instead of '\n' in normalize_body causing test to fail
 
-```sh
-cargo fuzz run strip_frontmatter
-cargo fuzz run structured_strip
-```
+### 🪲 Bug
 
-### Fixed
+- **(frontmatter)** replace remove(0) in normalize_body with trim_start_matches
 
-- `yaml_frontmatter.rs`: `normalize_body` does `body.remove(0)` in a loop which
-  could lead to a panic and slow evaluation. Replaced with `trim_start_matches`.
+## [1.1.3] - 2026-09-24
 
-## [1.1.3] - 2026-08-17
+### ✨ Added
 
-### Added
+- add test coverage badge to README
+- add badges to README
 
-- new clippy lints
+### ♻️ Changed
 
-- Exclude section to `Cargo.toml`
+- **(cli)** const USAGE
+- **(main)** remove redundant else block
+- **(frontmatter)** slim down large function with helper functions
 
-- Test coverage badge in `README.md`.
+### 🛠️ Fixed
 
-### Removed
+- mdBook uses items, not sections
 
-- `main.rs`: remove redundant else block in `Command::Supports`
+## [1.1.2] - 2026-09-24
 
-### Fixed
+### ✨ Added
 
-- cli: USAGE section as a `const` rather than many `eprintln!`
+- add unit tests to main
+- run cargo doc to generate documentation
+- **(lib)** add inline unit tests to ensure behavior remains the same during refactor
 
-### Changed
+### ♻️ Changed
 
-- refactor(frontmatter): create helper functions to slim down
-  `strip_frontmatter` function.
+- **(main)** create sub-modules and break up main
+- **(lib)** create book module and move related functions there
+- **(lib)** create frontmatter module and move strip_frontmatter there
+
+### 🛠️ Fixed
+
+- failing test because of incorrect logic
+- clippy lints
+
+## [1.1.1] - 2026-09-24
+
+### ✨ Added
+
+- fix clippy lints, update all dependencies
+
+### 🛠️ Fixed
+
+- remove unnecessary deps and upgrade deps
+
