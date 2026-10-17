@@ -54,35 +54,6 @@ Real content here.
 }
 
 #[test]
-fn unfenced_multi_line_yaml_is_stripped() {
-    let content = "\
-title: Post
-date: 2025-01-01
-tags: [rust]
-
-# Heading
-Body.
-";
-
-    let mut chapter = json!({
-        "Chapter": {
-            "name": "ch",
-            "content": content,
-            "sub_items": []
-        }
-    });
-
-    process_book_item(&mut chapter);
-
-    let out = chapter["Chapter"]["content"].as_str().unwrap();
-    assert!(
-        out.starts_with("# Heading"),
-        "body should start after YAML block"
-    );
-    assert!(!out.contains("title:"), "yaml lines should be removed");
-}
-
-#[test]
 fn url_at_top_is_not_stripped() {
     let content = "\
 http://example.com

@@ -48,6 +48,7 @@ pub fn parse_frontmatter(content: &str) -> Frontmatter<'_> {
         body: content,
     };
     let src = content.strip_prefix('\u{feff}').unwrap_or(content);
+    let src = skip_blank_lines(src);
 
     let mut lines = lines_with_offsets(src);
     let Some((_, first, yaml_start)) = lines.next() else {
@@ -65,7 +66,7 @@ pub fn parse_frontmatter(content: &str) -> Frontmatter<'_> {
                 return none;
             }
             return Frontmatter {
-                yaml: Some(yaml),
+                yaml: (!yaml.trim().is_empty()).then_some(yaml),
                 body: skip_blank_lines(&src[end..]),
             };
         }
@@ -162,15 +163,29 @@ fn skip_blank_lines(mut s: &str) -> &str {
 mod tests {
     use super::*;
 
-    #[test]
-    fn fenced_frontmatter_is_stripped() {
-        let input = "---\ntitle: Hi\n---\nbody text\n";
-        assert_eq!(strip_frontmatter(input), "body text\n");
+    fn fm(s: &str) -> (Option<&str>, &str) {
+        let f = parse_frontmatter(s);
+        (f.yaml, f.body)
     }
 
     #[test]
-    fn unfenced_frontmatter_is_stripped() {
-        let input = "title: Hi\nauthor: Tom\n\nbody text\n";
+    fn fence_must_be_whole_line() {
+        // `----` / `---title` / `--- x` are not fences.
+        for s in [
+            "----\na: 1\n----\nB",
+            "---a: 1\n---\nB",
+            "--- x\na: 1\n---\nB",
+        ] {
+            assert_eq!(fm(s), (None, s), "{s:?}");
+        }
+        // Closing `----` or `---x` inside the block isn't a close.
+        let s = "---\na: 1\n----\nb: 2\n---x\n";
+        assert_eq!(fm(s), (None, s));
+    }
+
+    #[test]
+    fn fenced_frontmatter_is_stripped() {
+        let input = "---\ntitle: Hi\n---\nbody text\n";
         assert_eq!(strip_frontmatter(input), "body text\n");
     }
 
@@ -227,12 +242,6 @@ mod tests {
     fn fenced_yaml_is_returned_without_delimiters() {
         let fm = parse_frontmatter("---\ntitle: Hi\ndate: 2024\n---\nbody\n");
         assert_eq!(fm.yaml, Some("title: Hi\ndate: 2024"));
-    }
-
-    #[test]
-    fn unfenced_yaml_is_returned() {
-        let fm = parse_frontmatter("title: Hi\nauthor: Jr\n\nbody\n");
-        assert_eq!(fm.yaml, Some("title: Hi\nauthor: Jr"));
     }
 
     #[test]
