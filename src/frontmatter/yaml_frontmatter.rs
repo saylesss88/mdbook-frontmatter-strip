@@ -1,8 +1,12 @@
-//! Strip YAML frontmatter from a Markdown string.
+//! Detect and strip YAML frontmatter from Markdown.
 //!
-//! Frontmatter must be at the very top of the file, delimited by `---` fences,
-//! or (failing that) detected heuristically as a block of unfenced `key: value`
-//! lines.
+//! Only *fenced* frontmatter is recognized:
+//!
+//! ```text
+//! ---
+//! title: Hello
+//! ---
+//! ```
 
 /// The result of parsing frontmatter from a Markdown string.
 #[derive(Debug)]
@@ -18,7 +22,7 @@ impl Frontmatter<'_> {
     /// Returns the YAML frontmatter if present, otherwise returns the full body.
     #[must_use]
     pub fn yaml_or_body(&self) -> &str {
-        self.yaml.unwrap_or(&self.body)
+        self.yaml.unwrap_or(self.body)
     }
 
     /// Returns `true` if frontmatter was detected.
