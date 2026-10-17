@@ -12,5 +12,8 @@ pub mod error;
 /// The actual stripping code
 pub mod frontmatter;
 
-pub use book::process_book_item;
-pub use frontmatter::yaml_frontmatter::{Frontmatter, parse_frontmatter, strip_frontmatter};
+pub use book::{process_book_item, process_book_item_with};
+pub use frontmatter::yaml_frontmatter::{
+    Frontmatter, ParseOptions, parse_frontmatter, parse_frontmatter_with, strip_frontmatter,
+    strip_frontmatter_with,
+};
