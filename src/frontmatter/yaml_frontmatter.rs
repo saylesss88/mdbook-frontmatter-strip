@@ -67,41 +67,10 @@ pub fn parse_frontmatter(content: &str) -> Frontmatter<'_> {
         };
     }
 
-    if let Some(yaml_end) = unfenced_yaml_end(content) {
-        let yaml = &content[..yaml_end];
-        let rest = content[yaml_end..].trim_start_matches('\n');
-        // Skip one optional blank separator line between YAML and body.
-        let body = rest.strip_prefix('\n').unwrap_or(rest);
-        return Frontmatter {
-            yaml: Some(yaml),
-            body,
-        };
-    }
     Frontmatter {
         yaml: None,
         body: content,
     }
-}
-
-/// Returns the byte offset of the end of an unfenced YAML block (i.e. ≥2
-/// consecutive `key: value` lines) within `content`, or `None` if no such
-/// block is found.
-fn unfenced_yaml_end(content: &str) -> Option<usize> {
-    let mut offset = 0;
-    let mut kv_count = 0;
-    let mut kv_end = 0;
-
-    for line in content.lines() {
-        if is_yaml_kv(line) {
-            kv_count += 1;
-            kv_end = offset + line.len();
-        } else {
-            break;
-        }
-        offset += line.len() + 1; // +1 for '\n'
-    }
-
-    if kv_count >= 2 { Some(kv_end) } else { None }
 }
 
 /// Is this a YAML key-value pair?
