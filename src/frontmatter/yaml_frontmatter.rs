@@ -146,7 +146,7 @@ mod tests {
         // Some generators emit a blank line before ---
         let input = "\n---\ntitle: Hi\n---\nbody\n";
         let fm = parse_frontmatter(input);
-        assert_eq!(fm.yaml.as_deref(), Some("title: Hi"));
+        assert_eq!(fm.yaml, Some("title: Hi"));
     }
 
     #[test]
@@ -166,13 +166,13 @@ mod tests {
     #[test]
     fn fenced_yaml_is_returned_without_delimiters() {
         let fm = parse_frontmatter("---\ntitle: Hi\ndate: 2024\n---\nbody\n");
-        assert_eq!(fm.yaml.as_deref(), Some("title: Hi\ndate: 2024"));
+        assert_eq!(fm.yaml, Some("title: Hi\ndate: 2024"));
     }
 
     #[test]
     fn unfenced_yaml_is_returned() {
         let fm = parse_frontmatter("title: Hi\nauthor: Jr\n\nbody\n");
-        assert_eq!(fm.yaml.as_deref(), Some("title: Hi\nauthor: Jr"));
+        assert_eq!(fm.yaml, Some("title: Hi\nauthor: Jr"));
     }
 
     #[test]
