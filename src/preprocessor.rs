@@ -109,7 +109,7 @@ mod tests {
                 }
             ]
         });
-        process_book(&mut book).unwrap();
+        process_book(&mut book, ParseOptions::new()).unwrap();
         assert_eq!(book["items"][0]["Chapter"]["content"], "body\n");
     }
 
