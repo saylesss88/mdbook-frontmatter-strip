@@ -65,10 +65,10 @@ pub struct Frontmatter<'a> {
     pub body: &'a str,
 }
 
-impl Frontmatter<'_> {
+impl<'a> Frontmatter<'a> {
     /// Returns the YAML frontmatter if present, otherwise returns the full body.
     #[must_use]
-    pub fn yaml_or_body(&self) -> &str {
+    pub fn yaml_or_body(&self) -> &'a str {
         self.yaml.unwrap_or(self.body)
     }
 
@@ -279,16 +279,52 @@ fn skip_blank_lines(mut s: &str) -> &str {
 mod tests {
     use super::*;
 
-    const ON: ParseOptions = ParseOptions::new().unfenced(true);
-
-    fn uf(s: &str) -> (Option<&str>, &str) {
-        let f = parse_frontmatter_with(s, ON);
-        (f.yaml, f.body)
-    }
-
     fn fm(s: &str) -> (Option<&str>, &str) {
         let f = parse_frontmatter(s);
         (f.yaml, f.body)
+    }
+
+    #[test]
+    fn basic() {
+        assert_eq!(
+            fm("---\ntitle: Hi\ntags: [a, b]\n---\n\n# Body\n"),
+            (Some("title: Hi\ntags: [a, b]"), "# Body\n")
+        );
+    }
+
+    #[test]
+    fn crlf() {
+        assert_eq!(
+            fm("---\r\ntitle: Hi\r\n---\r\n\r\nBody\r\n"),
+            (Some("title: Hi"), "Body\r\n")
+        );
+    }
+
+    #[test]
+    fn bom() {
+        assert_eq!(fm("\u{feff}---\na: 1\n---\nB"), (Some("a: 1"), "B"));
+    }
+
+    #[test]
+    fn dot_closing_fence_and_trailing_ws() {
+        assert_eq!(fm("--- \na: 1\n...  \nB"), (Some("a: 1"), "B"));
+    }
+
+    #[test]
+    fn empty_fenced_frontmatter_yields_none_yaml() {
+        // ---\n---\n should not panic and should give yaml: None
+        let f = parse_frontmatter("---\n---\nbody\n");
+        assert!(f.yaml.is_none());
+        assert!(!f.has_frontmatter());
+        assert_eq!(f.body, "body\n");
+        // Whitespace-only blocks behave the same.
+        assert_eq!(fm("---\n  \n\n---\nbody"), (None, "body"));
+        assert_eq!(fm("---\r\n---\r\nbody"), (None, "body"));
+    }
+
+    #[test]
+    fn no_trailing_newline_after_close() {
+        assert_eq!(fm("---\na: 1\n---"), (Some("a: 1"), ""));
     }
 
     #[test]
@@ -307,71 +343,204 @@ mod tests {
     }
 
     #[test]
-    fn fenced_frontmatter_is_stripped() {
-        let input = "---\ntitle: Hi\n---\nbody text\n";
-        assert_eq!(strip_frontmatter(input), "body text\n");
+    fn dashes_inside_values_dont_close() {
+        let s = "---\ndesc: |\n  foo --- bar\n  ---not-a-fence\nx: 1\n---\nB";
+        assert_eq!(
+            fm(s),
+            (Some("desc: |\n  foo --- bar\n  ---not-a-fence\nx: 1"), "B")
+        );
     }
 
     #[test]
-    fn single_kv_line_is_not_frontmatter() {
-        // Needs >= 2 lines to count as unfenced frontmatter.
-        let input = "title: Hi\nbody text\n";
-        assert_eq!(strip_frontmatter(input), input);
+    fn thematic_breaks_are_not_frontmatter() {
+        for s in [
+            "---\n\nJust a paragraph.\n\n---\nMore",
+            "---\n# Heading\n---\n",
+            "---\nhttp://example.com\n---\n",
+            "---\n- list item\n---\n",
+        ] {
+            assert_eq!(fm(s), (None, s), "{s:?}");
+        }
     }
 
     #[test]
-    fn url_like_line_is_not_treated_as_kv() {
-        let input = "see: https://example.com\nbody text\n";
-        assert_eq!(strip_frontmatter(input), input);
+    fn unclosed_fence_is_untouched() {
+        let s = "---\ntitle: x\n\nno closing fence";
+        assert_eq!(fm(s), (None, s));
     }
 
     #[test]
-    fn no_frontmatter_is_unchanged() {
-        let input = "# Just a heading\n\nSome body text.\n";
-        assert_eq!(strip_frontmatter(input), input);
-    }
-
-    #[test]
-    fn empty_fenced_frontmatter_yields_none_yaml() {
-        // ---\n---\n should not panic and should give yaml: None
-        let fm = parse_frontmatter("---\n---\nbody\n");
-        assert!(fm.yaml.is_none());
-        assert_eq!(fm.body, "body\n");
+    fn not_at_start_is_untouched() {
+        for s in [
+            "  ---\na: 1\n---\nB",
+            "\n  ---\na: 1\n---\nB",
+            "Intro\n---\na: 1\n---\n",
+        ] {
+            assert_eq!(fm(s), (None, s), "{s:?}");
+        }
     }
 
     #[test]
     fn frontmatter_with_leading_blank_lines() {
         // Some generators emit a blank line before ---
-        let input = "\n---\ntitle: Hi\n---\nbody\n";
-        let fm = parse_frontmatter(input);
-        assert_eq!(fm.yaml, Some("title: Hi"));
+        assert_eq!(
+            fm("\n---\ntitle: Hi\n---\nbody\n"),
+            (Some("title: Hi"), "body\n")
+        );
+        assert_eq!(fm("\r\n \t\n---\na: 1\n---\nB"), (Some("a: 1"), "B"));
+        assert_eq!(fm("\u{feff}\n\n---\na: 1\n---\nB"), (Some("a: 1"), "B"));
     }
 
     #[test]
-    fn fenced_frontmatter_with_multiline_value() {
-        // Folded/literal block scalars are common in Hugo/Jekyll
-        let input = "---\ntitle: Hi\ntags:\n  - rust\n  - mdbook\n---\nbody\n";
-        let fm = parse_frontmatter(input);
-        assert!(fm.yaml.is_some()); // just check it doesn't panic/lose data
+    fn leading_blanks_then_hr_is_untouched() {
+        let s = "\n\n---\n\nParagraph.\n\n---\n";
+        assert_eq!(fm(s), (None, s));
     }
 
     #[test]
-    fn preserves_missing_trailing_newline() {
-        let input = "---\ntitle: Hi\n---\nbody text";
-        assert_eq!(strip_frontmatter(input), "body text");
+    fn no_frontmatter_is_byte_identical() {
+        for s in [
+            "",
+            "\n\n    indented code\n",
+            "Title: Subtitle\nAuthor: Me\n\nText",
+        ] {
+            assert_eq!(strip_frontmatter(s), s);
+        }
     }
 
     #[test]
-    fn fenced_yaml_is_returned_without_delimiters() {
-        let fm = parse_frontmatter("---\ntitle: Hi\ndate: 2024\n---\nbody\n");
-        assert_eq!(fm.yaml, Some("title: Hi\ndate: 2024"));
+    fn body_keeps_indentation() {
+        assert_eq!(fm("---\na: 1\n---\n\n    code\n").1, "    code\n");
     }
 
     #[test]
-    fn no_frontmatter_yields_none_yaml() {
-        let fm = parse_frontmatter("# Heading\n\nbody\n");
-        assert!(fm.yaml.is_none());
+    fn comments_before_first_key() {
+        assert_eq!(fm("---\n# c\na: 1\n---\nB"), (Some("# c\na: 1"), "B"));
     }
+
+    #[test]
+    fn kv_detection() {
+        for ok in [
+            "a: 1",
+            "a:",
+            "key_name-2: x",
+            "a.b: c",
+            "\"a b\": 1",
+            "'x': y",
+            "a:\tb",
+        ] {
+            assert!(is_yaml_kv(ok), "{ok:?}");
+        }
+        for bad in [
+            "",
+            "---",
+            "a:b",
+            "http://x",
+            ": x",
+            "a b: c",
+            "- a: b",
+            "\"open: x",
+            "no colon",
+        ] {
+            assert!(!is_yaml_kv(bad), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn yaml_or_body_outlives_struct() {
+        let s = String::from("---\na: 1\n---\nB");
+        let y = { parse_frontmatter(&s).yaml_or_body() };
+        assert_eq!(y, "a: 1");
+    }
+}
+
+#[cfg(test)]
+mod unfenced_tests {
+    use super::*;
+
+    const ON: ParseOptions = ParseOptions::new().unfenced(true);
+
+    fn uf(s: &str) -> (Option<&str>, &str) {
+        let f = parse_frontmatter_with(s, ON);
+        (f.yaml, f.body)
+    }
+
+    #[test]
+    fn off_by_default() {
+        let s = "title: Hi\nauthor: Me\n\nBody\n";
+        assert_eq!(parse_frontmatter(s).yaml, None);
+        assert_eq!(strip_frontmatter(s), s);
+        assert_eq!(ParseOptions::default(), ParseOptions::new());
+    }
+
+    #[test]
+    fn basic() {
+        assert_eq!(
+            uf("title: Hi\nauthor: Me\n\nBody\n"),
+            (Some("title: Hi\nauthor: Me"), "Body\n")
+        );
+        // No separating blank line.
+        assert_eq!(
+            uf("a: 1\nb: 2\n# Heading\n"),
+            (Some("a: 1\nb: 2"), "# Heading\n")
+        );
+        // Whole document is key/value lines.
+        assert_eq!(uf("a: 1\nb: 2"), (Some("a: 1\nb: 2"), ""));
+    }
+
+    #[test]
+    fn crlf_bom_and_leading_blanks() {
+        assert_eq!(
+            uf("a: 1\r\nb: 2\r\n\r\nBody\r\n"),
+            (Some("a: 1\r\nb: 2"), "Body\r\n")
+        );
+        assert_eq!(
+            uf("\u{feff}\n\na: 1\nb: 2\n\nBody"),
+            (Some("a: 1\nb: 2"), "Body")
+        );
+    }
+
+    #[test]
+    fn single_kv_line_is_not_frontmatter() {
+        let s = "Note: this is a paragraph.\n\nMore text.\n";
+        assert_eq!(uf(s), (None, s));
+    }
+
+    #[test]
+    fn non_kv_lines_are_untouched() {
+        for s in [
+            "# Title\na: 1\nb: 2\n",
+            "See http://x.com\nand: more\n",
+            "a:b\nc:d\n",
+            "",
+        ] {
+            assert_eq!(uf(s), (None, s), "{s:?}");
+        }
+    }
+
+    #[test]
+    fn fenced_still_wins() {
+        assert_eq!(
+            uf("---\na: 1\nb: 2\n---\nBody"),
+            (Some("a: 1\nb: 2"), "Body")
+        );
+    }
+
+    #[test]
+    fn opening_fence_never_falls_through() {
+        // Unclosed fence followed by key/value lines: left untouched.
+        let s = "---\na: 1\nb: 2\n\nBody\n";
+        assert_eq!(uf(s), (None, s));
+        // Thematic break document: left untouched.
+        let s = "---\n\nParagraph.\n\n---\n";
+        assert_eq!(uf(s), (None, s));
+    }
+
+    #[test]
+    fn body_keeps_indentation() {
+        assert_eq!(uf("a: 1\nb: 2\n\n    code\n").1, "    code\n");
+    }
+
     #[test]
     fn indented_list_under_key() {
         let s = "title: Results Cache\n\
@@ -431,5 +600,84 @@ mod tests {
         assert_eq!(uf(s), (None, s));
         let s = "Note:\n- one\n- two\n\nBody\n";
         assert_eq!(uf(s), (None, s));
+    }
+
+    #[test]
+    fn indented_first_line_is_not_frontmatter() {
+        let s = "    a: 1\n    b: 2\n\nBody\n";
+        assert_eq!(uf(s), (None, s));
+    }
+
+    #[test]
+    fn fenced_frontmatter_is_stripped() {
+        let input = "---\ntitle: Hi\n---\nbody text\n";
+        assert_eq!(strip_frontmatter(input), "body text\n");
+    }
+
+    #[test]
+    fn url_like_line_is_not_treated_as_kv() {
+        let input = "see: https://example.com\nbody text\n";
+        assert_eq!(strip_frontmatter(input), input);
+    }
+
+    #[test]
+    fn no_frontmatter_is_unchanged() {
+        let input = "# Just a heading\n\nSome body text.\n";
+        assert_eq!(strip_frontmatter(input), input);
+    }
+
+    #[test]
+    fn empty_fenced_frontmatter_yields_none_yaml() {
+        // ---\n---\n should not panic and should give yaml: None
+        let fm = parse_frontmatter("---\n---\nbody\n");
+        assert!(fm.yaml.is_none());
+        assert_eq!(fm.body, "body\n");
+    }
+
+    #[test]
+    fn frontmatter_with_leading_blank_lines() {
+        // Some generators emit a blank line before ---
+        let input = "\n---\ntitle: Hi\n---\nbody\n";
+        let fm = parse_frontmatter(input);
+        assert_eq!(fm.yaml, Some("title: Hi"));
+    }
+
+    #[test]
+    fn fenced_frontmatter_with_multiline_value() {
+        // Folded/literal block scalars are common in Hugo/Jekyll
+        let input = "---\ntitle: Hi\ntags:\n  - rust\n  - mdbook\n---\nbody\n";
+        let fm = parse_frontmatter(input);
+        assert!(fm.yaml.is_some()); // just check it doesn't panic/lose data
+    }
+
+    #[test]
+    fn preserves_missing_trailing_newline() {
+        let input = "---\ntitle: Hi\n---\nbody text";
+        assert_eq!(strip_frontmatter(input), "body text");
+    }
+
+    #[test]
+    fn fenced_yaml_is_returned_without_delimiters() {
+        let fm = parse_frontmatter("---\ntitle: Hi\ndate: 2024\n---\nbody\n");
+        assert_eq!(fm.yaml, Some("title: Hi\ndate: 2024"));
+    }
+
+    #[test]
+    fn no_frontmatter_yields_none_yaml() {
+        let fm = parse_frontmatter("# Heading\n\nbody\n");
+        assert!(fm.yaml.is_none());
+    }
+}
+
+#[cfg(test)]
+mod body_hr_tests {
+    use super::*;
+
+    #[test]
+    fn hr_in_body_is_kept() {
+        let s = "---\ntitle: Hello\n---\n\nBody.\n\n---\n\n## Header\n";
+        let f = parse_frontmatter(s);
+        assert_eq!(f.yaml, Some("title: Hello"));
+        assert_eq!(f.body, "Body.\n\n---\n\n## Header\n");
     }
 }
