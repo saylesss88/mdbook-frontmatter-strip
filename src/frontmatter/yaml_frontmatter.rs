@@ -199,18 +199,36 @@ fn parse_fenced(src: &str) -> Option<Frontmatter<'_>> {
 /// Two or more consecutive `key: value` lines at the start of `src`
 /// (the 1.0 heuristic).
 fn parse_unfenced(src: &str) -> Option<Frontmatter<'_>> {
-    let mut count = 0;
+    let mut keys = 0;
     let mut yaml_end = 0;
     let mut body_start = 0;
+    let mut open_list = false;
+
     for (start, line, next) in lines_with_offsets(src) {
-        if !is_yaml_kv(line) {
+        if line.trim().is_empty() {
             break;
         }
-        count += 1;
+        let indented = line.starts_with([' ', '\t']);
+        let list_item = {
+            let t = line.trim_end();
+            t == "-" || t.starts_with("- ")
+        };
+
+        if keys > 0 && indented {
+            // Continuation of the previous key; `open_list` is unchanged.
+        } else if keys > 0 && open_list && list_item {
+            // `tags:` followed by `- a` at column 0 (valid YAML).
+        } else if !indented && is_yaml_kv(line) {
+            keys += 1;
+            open_list = line.trim_end().ends_with(':');
+        } else {
+            break;
+        }
         yaml_end = start + line.len(); // excludes `\r\n` / `\n`
         body_start = next;
     }
-    (count >= 2).then(|| Frontmatter {
+
+    (keys >= 2).then(|| Frontmatter {
         yaml: Some(&src[..yaml_end]),
         body: skip_blank_lines(&src[body_start..]),
     })
@@ -260,6 +278,13 @@ fn skip_blank_lines(mut s: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const ON: ParseOptions = ParseOptions::new().unfenced(true);
+
+    fn uf(s: &str) -> (Option<&str>, &str) {
+        let f = parse_frontmatter_with(s, ON);
+        (f.yaml, f.body)
+    }
 
     fn fm(s: &str) -> (Option<&str>, &str) {
         let f = parse_frontmatter(s);
@@ -346,5 +371,65 @@ mod tests {
     fn no_frontmatter_yields_none_yaml() {
         let fm = parse_frontmatter("# Heading\n\nbody\n");
         assert!(fm.yaml.is_none());
+    }
+    #[test]
+    fn indented_list_under_key() {
+        let s = "title: Results Cache\n\
+                 date: 2026-10-17\n\
+                 author: saylesss88\n\
+                 author-email: saylesss87@proton.me\n\
+                 tags:\n\
+                 \x20 - rust-analyzer\n\
+                 \x20 - rust-meth-lib\n\
+                 lang: en-US\n\
+                 \n\
+                 # Results Cache\n";
+        let (yaml, body) = uf(s);
+        assert_eq!(body, "# Results Cache\n");
+        let yaml = yaml.unwrap();
+        assert!(yaml.starts_with("title: Results Cache\n"), "{yaml}");
+        assert!(yaml.contains("  - rust-meth-lib\nlang: en-US"), "{yaml}");
+        assert!(yaml.ends_with("lang: en-US"), "{yaml}");
+    }
+
+    #[test]
+    fn unindented_list_under_key() {
+        assert_eq!(
+            uf("title: X\ntags:\n- a\n- b\nlang: en\n\nBody\n"),
+            (Some("title: X\ntags:\n- a\n- b\nlang: en"), "Body\n")
+        );
+    }
+
+    #[test]
+    fn nested_map_and_block_scalar() {
+        assert_eq!(
+            uf(
+                "title: X\nauthor:\n  name: Jr\n  email: t@x\ndesc: |\n  line one\n  line two\n\nBody"
+            ),
+            (
+                Some(
+                    "title: X\nauthor:\n  name: Jr\n  email: t@x\ndesc: |\n  line one\n  line two"
+                ),
+                "Body"
+            )
+        );
+    }
+
+    #[test]
+    fn markdown_list_after_kv_lines_is_body() {
+        // `- item` under a key that already has a value is Markdown, not YAML.
+        assert_eq!(
+            uf("title: X\nlang: en\n- a markdown list\n"),
+            (Some("title: X\nlang: en"), "- a markdown list\n")
+        );
+    }
+
+    #[test]
+    fn list_items_dont_count_as_keys() {
+        // Only one real key: not frontmatter.
+        let s = "tags:\n  - a\n  - b\n\nBody\n";
+        assert_eq!(uf(s), (None, s));
+        let s = "Note:\n- one\n- two\n\nBody\n";
+        assert_eq!(uf(s), (None, s));
     }
 }
