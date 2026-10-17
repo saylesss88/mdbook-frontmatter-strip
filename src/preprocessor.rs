@@ -6,14 +6,19 @@ use std::io::{self, Read, Write};
 
 use serde_json::Value;
 
+use mdbook_frontmatter_strip::ParseOptions;
 use mdbook_frontmatter_strip::error::{Error, Result};
+
+/// The `[preprocessor.<NAME>]` table this preprocessor reads its options from.
+const NAME: &str = "frontmatter-strip";
 
 /// Run the full preprocessor: read stdin, process, write stdout.
 pub fn run(mut input: impl Read, output: impl Write) -> Result<()> {
     let mut buf = String::new();
     input.read_to_string(&mut buf)?;
     let mut values = parse_input(&buf)?;
-    process_book(&mut values[1])?;
+    let opts = parse_options(&values[0])?;
+    process_book(&mut values[1], opts)?;
     write_output(output, &values[1])
 }
 
@@ -34,13 +39,35 @@ fn parse_input(input: &str) -> Result<Vec<Value>> {
     Ok(values)
 }
 
+/// Read `[preprocessor.frontmatter-strip]` options from the mdBook context.
+///
+/// A missing table or key means the default. A key with the wrong type is
+/// an error, so a typo like `unfenced = "true"` doesn't silently do nothing.
+fn parse_options(ctx: &Value) -> Result<ParseOptions> {
+    let table = ctx
+        .get("config")
+        .and_then(|c| c.get("preprocessor"))
+        .and_then(|p| p.get(NAME));
+
+    let unfenced = match table.and_then(|t| t.get("unfenced")) {
+        None => false,
+        Some(Value::Bool(b)) => *b,
+        Some(other) => {
+            return Err(Error::MalformedInput(format!(
+                "`preprocessor.{NAME}.unfenced` must be true or false, got {other}"
+            )));
+        }
+    };
+    Ok(ParseOptions::new().unfenced(unfenced))
+}
+
 /// Strip frontmatter from every chapter in the book, in place.
-fn process_book(book: &mut Value) -> Result<()> {
+fn process_book(book: &mut Value, opts: ParseOptions) -> Result<()> {
     let Some(Value::Array(items)) = book.get_mut("items") else {
         return Err(Error::MalformedInput("book JSON has no 'items'".into()));
     };
     for item in items {
-        mdbook_frontmatter_strip::process_book_item(item);
+        mdbook_frontmatter_strip::process_book_item_with(item, opts);
     }
     Ok(())
 }
