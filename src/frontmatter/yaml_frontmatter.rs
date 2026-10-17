@@ -43,34 +43,36 @@ impl Frontmatter<'_> {
 /// ```
 #[must_use]
 pub fn parse_frontmatter(content: &str) -> Frontmatter<'_> {
-    let content = content.trim_start();
-
-    // Try fenced frontmatter first: --- ... ---
-    if content.starts_with("---") {
-        if let Some(rest) = content.strip_prefix("---")
-            && let Some((yaml, body)) = rest.split_once("\n---")
-        {
-            let yaml = yaml.trim();
-            let body = body.trim_start();
-
-            return Frontmatter {
-                yaml: if yaml.is_empty() { None } else { Some(yaml) },
-                body,
-            };
-        }
-
-        // Saw an opening fence but no closing fence, Bdo not fall through to
-        // unfenced detection; return the content as-is.
-        return Frontmatter {
-            yaml: None,
-            body: content,
-        };
-    }
-
-    Frontmatter {
+    let none = Frontmatter {
         yaml: None,
         body: content,
+    };
+    let src = content.strip_prefix('\u{feff}').unwrap_or(content);
+
+    let mut lines = lines_with_offsets(src);
+    let Some((_, first, yaml_start)) = lines.next() else {
+        return none;
+    };
+    if first.trim_end() != "---" {
+        return none;
     }
+
+    for (start, line, end) in lines {
+        let fence = line.trim_end();
+        if fence == "---" || fence == "..." {
+            let yaml = strip_eol(&src[yaml_start..start]);
+            if !looks_like_yaml_mapping(yaml) {
+                return none;
+            }
+            return Frontmatter {
+                yaml: Some(yaml),
+                body: skip_blank_lines(&src[end..]),
+            };
+        }
+    }
+
+    // Opening fence without a closing one: not frontmatter.
+    none
 }
 
 /// Is this line a YAML `key: value` (or `key:`) mapping entry?
@@ -113,6 +115,47 @@ pub fn is_yaml_kv(line: &str) -> bool {
 #[must_use]
 pub fn strip_frontmatter(content: &str) -> &str {
     parse_frontmatter(content).body
+}
+
+/// Empty, or the first non-blank, non-comment line is a mapping key.
+/// A block containing only comments is rejected: `# Heading` between two
+/// thematic breaks is far more likely Markdown than YAML.
+fn looks_like_yaml_mapping(yaml: &str) -> bool {
+    if yaml.trim().is_empty() {
+        return true;
+    }
+    yaml.lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty() && !l.starts_with('#'))
+        .is_some_and(is_yaml_kv)
+}
+
+/// Yields `(line_start, line_without_eol, next_line_start)`.
+fn lines_with_offsets(s: &str) -> impl Iterator<Item = (usize, &str, usize)> {
+    let mut pos = 0;
+    s.split_inclusive('\n').map(move |raw| {
+        let start = pos;
+        pos += raw.len();
+        (start, strip_eol(raw), pos)
+    })
+}
+
+fn strip_eol(s: &str) -> &str {
+    let s = s.strip_suffix('\n').unwrap_or(s);
+    s.strip_suffix('\r').unwrap_or(s)
+}
+
+/// Remove whole blank lines from the start, keeping indentation of the first
+/// real line (so a leading indented code block survives).
+fn skip_blank_lines(mut s: &str) -> &str {
+    while let Some(i) = s.find('\n') {
+        if s[..i].trim().is_empty() {
+            s = &s[i + 1..];
+        } else {
+            return s;
+        }
+    }
+    if s.trim().is_empty() { "" } else { s }
 }
 
 #[cfg(test)]
