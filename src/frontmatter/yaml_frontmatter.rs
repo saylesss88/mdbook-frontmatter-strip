@@ -73,23 +73,40 @@ pub fn parse_frontmatter(content: &str) -> Frontmatter<'_> {
     }
 }
 
-/// Is this a YAML key-value pair?
+/// Is this line a YAML `key: value` (or `key:`) mapping entry?
+///
+/// Unquoted keys may contain alphanumerics, `_`, `-` and `.`; quoted keys
+/// (`"a b": 1`, `'x': y`) may contain anything. The colon must be followed
+/// by whitespace or end of line, as YAML requires, so `http://x` and
+/// `a:b` are rejected.
 #[must_use]
 pub fn is_yaml_kv(line: &str) -> bool {
-    let trimmed = line.trim();
-    if trimmed.is_empty() || trimmed == "---" {
-        return false;
-    }
-    if let Some(colon_idx) = trimmed.find(':') {
-        let key = trimmed[..colon_idx].trim();
-        if key.is_empty() || key.contains("://") {
+    let line = line.trim();
+
+    let after_key = if let Some(q @ ('"' | '\'')) = line.chars().next() {
+        let inner = &line[1..];
+        let Some(i) = inner.find(q) else {
+            return false;
+        };
+        &inner[i + 1..]
+    } else {
+        let Some(i) = line.find(':') else {
+            return false;
+        };
+        let key = &line[..i];
+        if key.is_empty()
+            || !key
+                .chars()
+                .all(|c| c.is_alphanumeric() || matches!(c, '_' | '-' | '.'))
+        {
             return false;
         }
-        key.chars()
-            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
-    } else {
-        false
-    }
+        &line[i..]
+    };
+
+    after_key
+        .strip_prefix(':')
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with([' ', '\t']))
 }
 
 /// Strip YAML frontmatter from a Markdown string.
