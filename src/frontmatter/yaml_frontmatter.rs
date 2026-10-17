@@ -1,15 +1,62 @@
 //! Detect and strip YAML frontmatter from Markdown.
 //!
-//! Only *fenced* frontmatter is recognized:
+//! *Fenced* frontmatter is always recognized:
 //!
 //! ```text
 //! ---
 //! title: Hello
 //! ---
 //! ```
+//!
+//! Rules:
+//! - The opening `---` must be the first non-blank line, unindented. An
+//!   optional UTF-8 BOM and blank lines may precede it. Trailing whitespace
+//!   on a fence line is tolerated.
+//! - The closing fence is a line that is exactly `---` or `...`.
+//! - The block must be empty or start with a `key: value` line, so a document
+//!   that merely opens with a thematic break (`---`) isn't mistaken for
+//!   frontmatter.
+//! - `\n` and `\r\n` line endings are both supported.
+//! - If no frontmatter is found, the input is returned **unchanged**.
+//!
+//! *Unfenced* frontmatter (two or more `key: value` lines at the top of
+//! the file, no `---`) is opt-in via [`ParseOptions::unfenced`], because
+//! it can strip ordinary markdown such as `Note:: ...`/ `Warning: ...` lines.
+
+/// Options for [`parse_frontmatter_with`].
+///
+/// ```
+/// # use mdbook_frontmatter_strip::{parse_frontmatter_with, ParseOptions};
+/// let opts = ParseOptions::new().unfenced(true);
+/// let fm = parse_frontmatter_with("title: Hi\nauthor: Me\n\nBody\n", opts);
+/// assert_eq!(fm.yaml, Some("title: Hi\nauthor: Me"));
+/// assert_eq!(fm.body, "Body\n");
+/// ```
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ParseOptions {
+    /// Detect unfenced frontmatter: two or more consecutive `key: value`
+    /// lines at the start of the document. Off by default.
+    pub unfenced: bool,
+}
+
+impl ParseOptions {
+    /// Default options: fenced frontmatter only.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { unfenced: false }
+    }
+
+    /// Enable or disable unfenced frontmatter detection.
+    #[must_use]
+    pub const fn unfenced(mut self, yes: bool) -> Self {
+        self.unfenced = yes;
+        self
+    }
+}
 
 /// The result of parsing frontmatter from a Markdown string.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Frontmatter<'a> {
     /// The raw YAML string between the `---` fences, or the heuristically
     /// detected `key: value` block. `None` if no frontmatter was found.
@@ -31,18 +78,34 @@ impl Frontmatter<'_> {
         self.yaml.is_some()
     }
 }
-/// Parse and return both the frontmatter and body separately.
+
+/// Parse fenced frontmatter and return it and the body separately.
+///
+/// Equivalent to [`parse_frontmatter_with`] with default [`ParseOptions`].
 ///
 /// # Examples
 /// ```
-///
 /// # use mdbook_frontmatter_strip::parse_frontmatter;
 /// let fm = parse_frontmatter("---\ntitle: Hello\n---\n\nBody text.\n");
-/// assert_eq!(fm.yaml.as_deref(), Some("title: Hello"));
+/// assert_eq!(fm.yaml, Some("title: Hello"));
 /// assert_eq!(fm.body, "Body text.\n");
+///
+/// // A leading thematic break is not frontmatter.
+/// let md = "---\n\nJust a paragraph.\n\n---\n";
+/// assert_eq!(parse_frontmatter(md).body, md);
 /// ```
 #[must_use]
 pub fn parse_frontmatter(content: &str) -> Frontmatter<'_> {
+    parse_frontmatter_with(content, ParseOptions::new())
+}
+
+/// Parse frontmatter using the given options.
+///
+/// Fenced fm always takes priority. A document with a first line of
+/// `---` never falls through to unfenced detection, even if the fence
+/// is unclosed
+#[must_use]
+pub fn parse_frontmatter_with(content: &str, opts: ParseOptions) -> Frontmatter<'_> {
     let none = Frontmatter {
         yaml: None,
         body: content,
@@ -50,29 +113,17 @@ pub fn parse_frontmatter(content: &str) -> Frontmatter<'_> {
     let src = content.strip_prefix('\u{feff}').unwrap_or(content);
     let src = skip_blank_lines(src);
 
-    let mut lines = lines_with_offsets(src);
-    let Some((_, first, yaml_start)) = lines.next() else {
+    let Some((_, first, _)) = lines_with_offsets(src).next() else {
         return none;
     };
-    if first.trim_end() != "---" {
-        return none;
+    if first.trim_end() == "---" {
+        return parse_fenced(src).unwrap_or(none);
     }
-
-    for (start, line, end) in lines {
-        let fence = line.trim_end();
-        if fence == "---" || fence == "..." {
-            let yaml = strip_eol(&src[yaml_start..start]);
-            if !looks_like_yaml_mapping(yaml) {
-                return none;
-            }
-            return Frontmatter {
-                yaml: (!yaml.trim().is_empty()).then_some(yaml),
-                body: skip_blank_lines(&src[end..]),
-            };
-        }
+    if opts.unfenced
+        && let Some(fm) = parse_unfenced(src)
+    {
+        return fm;
     }
-
-    // Opening fence without a closing one: not frontmatter.
     none
 }
 
@@ -112,10 +163,57 @@ pub fn is_yaml_kv(line: &str) -> bool {
         .is_some_and(|rest| rest.is_empty() || rest.starts_with([' ', '\t']))
 }
 
-/// Strip YAML frontmatter from a Markdown string.
+/// Strip YAML frontmatter from a Markdown string. Returns the input unchanged if there is none.
 #[must_use]
 pub fn strip_frontmatter(content: &str) -> &str {
     parse_frontmatter(content).body
+}
+
+/// Strip YAML frontmatter using given options.
+#[must_use]
+pub fn strip_frontmatter_with(content: &str, opts: ParseOptions) -> &str {
+    parse_frontmatter_with(content, opts).body
+}
+
+/// `src` starts with an opening `---` line.
+fn parse_fenced(src: &str) -> Option<Frontmatter<'_>> {
+    let mut lines = lines_with_offsets(src);
+    let (_, _, yaml_start) = lines.next()?;
+    for (start, line, end) in lines {
+        let fence = line.trim_end();
+        if fence == "---" || fence == "..." {
+            let yaml = strip_eol(&src[yaml_start..start]);
+            if !looks_like_yaml_mapping(yaml) {
+                return None;
+            }
+            return Some(Frontmatter {
+                yaml: (!yaml.trim().is_empty()).then_some(yaml),
+                body: skip_blank_lines(&src[end..]),
+            });
+        }
+    }
+    // Opening fence without a closing one: not frontmatter.
+    None
+}
+
+/// Two or more consecutive `key: value` lines at the start of `src`
+/// (the 1.0 heuristic).
+fn parse_unfenced(src: &str) -> Option<Frontmatter<'_>> {
+    let mut count = 0;
+    let mut yaml_end = 0;
+    let mut body_start = 0;
+    for (start, line, next) in lines_with_offsets(src) {
+        if !is_yaml_kv(line) {
+            break;
+        }
+        count += 1;
+        yaml_end = start + line.len(); // excludes `\r\n` / `\n`
+        body_start = next;
+    }
+    (count >= 2).then(|| Frontmatter {
+        yaml: Some(&src[..yaml_end]),
+        body: skip_blank_lines(&src[body_start..]),
+    })
 }
 
 /// Empty, or the first non-blank, non-comment line is a mapping key.
