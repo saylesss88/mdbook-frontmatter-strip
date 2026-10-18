@@ -25,6 +25,12 @@ adds minimal weight to your build.
 cargo install mdbook-frontmatter-strip
 ```
 
+Or install a prebuilt binary with `cargo-binstall`:
+
+```bash
+cargo binstall mdbook-frontmatter-strip
+```
+
 Check your version:
 
 ```bash
@@ -51,11 +57,9 @@ mdbook build
 
 ## Configuration
 
-| Key | Type | Default | Description |
-
-| --------------- | --------------- | --------------- | --------------- | |
-`unfenced` | bool | `false` | Also strip unfenced frontmatter: two or more
-`key: value` lines at the top of a chapter. |
+| Key        | Type | Default | Description                                                                             |
+| ---------- | ---- | ------- | --------------------------------------------------------------------------------------- |
+| `unfenced` | bool | `false` | Also strip unfenced frontmatter: two or more `key: value` lines at the top of a chapter |
 
 ```toml
 [preprocessor.frontmatter-strip]
@@ -72,6 +76,24 @@ A non-boolean value (e.g. `unfenced = "true"`) fails the build with an error
 rather than being silently ignored.
 
 ---
+
+## Deploying
+
+Hosted build environments (Cloudflare Pages, Netlify, etc.) don't have this
+preprocessor installed, and compiling it on every deploy is slow. Download the
+prebuilt Linux binary from the GitHub release instead, in the same build command
+where you install `mdbook`:
+
+```bash
+curl -sSL https://github.com/saylesss88/mdbook-frontmatter-strip/releases/download/v2.0.0/mdbook-frontmatter-strip-x86_64-unknown-linux-musl.tar.gz | tar xz
+export PATH="$PWD:$PATH"
+mdbook build
+```
+
+Without the binary, `mdbook` build fails with an error that the preprocessor
+couldn't be run. If you only want a warning, add `optional = true` to
+`[preprocessor.frontmatter-strip]`. The build then succeeds, but nothing is
+stripped, so your frontmatter will show up in the published site.
 
 ## Library Usage
 
@@ -132,15 +154,15 @@ stdin input and the full `Frontmatter` API.
   blank lines and a UTF-8 BOM are allowed.
 
 - The closing fence is a line containing only `---` or `...`. Trailing
-  whitespace is fine; `----` or `---` text is not a fence.
+  whitespace is fine; `----` or `--- text` is not a fence.
 
-- The block must be empty or start with a key: value line (comments allowed
+- The block must be empty or start with a `key: value` line (comments allowed
   before it). A chapter that merely opens with a horizontal rule (`---`) is left
   alone.
 
 - Later `---` lines in the body are horizontal rules and are never touched.
 
-- An empty block (--- followed by ---) is stripped, but yaml is None.
+- An empty block (`---` followed by `---`) is stripped, but `yaml` is `None`.
 
 - An opening fence with no closing fence is not frontmatter; the chapter is left
   unchanged.
@@ -148,6 +170,12 @@ stdin input and the full `Frontmatter` API.
 **Unfenced frontmatter** (opt-in, see [Configuration](#configuration)):
 
 - Requires at least two consecutive `key: value` lines at the top.
+
+- Indented lines (nested lists, maps, `|` strings) and `- item` lines directly
+  under an empty `key:` belong to that key.
+
+- The block ends at the first blank line or the first line that isn't part of
+  it, so leave a blank line between the frontmatter and your content.
 
 - Never applies to a chapter whose first line is `---`.
 
@@ -169,6 +197,13 @@ stdin input and the full `Frontmatter` API.
 > and future changes to this crate.
 
 ---
+
+## Upgrading from 1.x
+
+Unfenced frontmatter is no longer stripped by default. If your chapters rely on
+it, add `unfenced = true` to `[preprocessor.frontmatter-strip]`, or use
+`ParseOptions::new().unfenced(true)` in library code. Fenced frontmatter needs no
+changes.
 
 ## License
 
