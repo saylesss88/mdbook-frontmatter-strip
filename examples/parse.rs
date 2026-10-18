@@ -9,7 +9,7 @@ fn main() {
             "fenced",
             "---\ntitle: My Post\ndate: 2026-10-03\n---\n\n# Hello\n\nBody text.\n",
         ),
-        ("unfenced", "title: My Post\nauthor: Tom\n\nBody text.\n"),
+        ("unfenced", "title: My Post\nauthor: Jr\n\nBody text.\n"),
         (
             "none",
             "# No frontmatter here\n\nJust a regular markdown file.\n",
