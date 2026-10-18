@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-10-18
+
+### ✨ Added
+
+- add workflow to auto-release binaries & cargo-binstall metadata
+- **(preprocessor)** tie in optional unfenced support
+- **(book)** tie in optional unfenced support
+- **(frontmatter)** add opt-in unfenced detection to keep behavior somewhat consistent
+
+### 🛠️ Fixed
+
+- **(test)** process_book now takes 2 arguments
+- `is_yaml_kv` is too loose
+- remove unfenced yaml detection
+- remove unnecessary borrow from yaml_or_body
+- **(CHANGELOG)** partial runs of jj-release made CL out of order
+
+### 🪲 Bug
+
+- list items in unfenced frontmatter arent stripped
+- **(frontmatter)** fences arent full lines
+
+### 📚 Documentation
+
+- update README
+- update README
+
 ## [1.2.2] - 2026-09-24
 
 ### 🛠️ Fixed
