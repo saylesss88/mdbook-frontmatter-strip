@@ -3,6 +3,12 @@ name: Release binaries
 on:
   release:
     types: [published]
+  # Re-run by hand against an existing release tag (Actions -> Run workflow).
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and upload to (e.g. v2.0.0)"
+        required: true
 
 permissions:
   contents: write
@@ -20,15 +26,20 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Build the tagged source, whichever way the workflow was started.
+          ref: ${{ inputs.tag || github.event.release.tag_name }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - run: cargo build --release --locked --target ${{ matrix.target }}
+      # No --locked: a committed Cargo.lock is still honoured, but a release
+      # bump that leaves it slightly stale no longer fails the build.
+      - run: cargo build --release --target ${{ matrix.target }}
       - name: Package and upload
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
           TARGET: ${{ matrix.target }}
         run: |
           name=mdbook-frontmatter-strip
