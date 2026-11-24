@@ -17,6 +17,8 @@ I'll add it.
 It's intentionally lightweight: just a single dependency (`serde_json`), so it
 adds minimal weight to your build.
 
+> Supports mdBook 0.4.x and 0.5.x (tested with 0.4.0 and 0.5.4).
+
 ---
 
 ## Installation
@@ -46,8 +48,14 @@ Add the preprocessor to your `book.toml`:
 
 ```toml
 [preprocessor.frontmatter-strip]
-renderers = ["html"]
 ```
+
+> Runs for every renderer by default (HTML, EPUB, PDF, etc.). To limit it, list
+> the renderers you want:
+> ```toml
+> [preprocessor.frontmatter-strip]
+> renderers = ["html"]
+> ```
 
 Then build as usual:
 
@@ -63,7 +71,6 @@ mdbook build
 
 ```toml
 [preprocessor.frontmatter-strip]
-renderers = ["html"]
 unfenced = true
 ```
 
@@ -104,7 +111,7 @@ Add it to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-mdbook-frontmatter-strip = "2"
+mdbook-frontmatter-strip = "4"
 ```
 
 Strip frontmatter and get the body:
@@ -150,51 +157,54 @@ stdin input and the full `Frontmatter` API.
 
 ## Behavior
 
-- The opening `---` must be the first non-blank line, not indented. Leading
-  blank lines and a UTF-8 BOM are allowed.
+Frontmatter at the very top of a chapter is removed. Everything else is left as is.
 
-- The closing fence is a line containing only `---` or `...`. Trailing
-  whitespace is fine; `----` or `--- text` is not a fence.
+```markdown
+---
+title: My Chapter
+tags: [rust, mdbook]
+---
 
-- The block must be empty or start with a `key: value` line (comments allowed
-  before it). A chapter that merely opens with a horizontal rule (`---`) is left
-  alone.
+# My Chapter      ← the chapter now starts here
+```
 
-- Later `---` lines in the body are horizontal rules and are never touched.
+A chapter is only changed if it **opens with `---`, then a `key: value` line,
+then a closing `---` or `...`**. So these are left alone:
 
-- An empty block (`---` followed by `---`) is stripped, but `yaml` is `None`.
+- A chapter that starts with a horizontal rule (`---` with no `key: value` after it)
+- An opening `---` with no closing fence
+- `---` lines later in the chapter (horizontal rules)
+- Chapters with no frontmatter (passed through byte-for-byte)
 
-- An opening fence with no closing fence is not frontmatter; the chapter is left
-  unchanged.
+### Details
 
-**Unfenced frontmatter** (opt-in, see [Configuration](#configuration)):
+- Leading blank lines and a UTF-8 BOM before the opening `---` are fine; an
+  indented `---` is not a fence.
+- Fence lines may have trailing whitespace, but `----` or `--- text` are not fences.
+- Comments may come before the first key. An empty block (`---` then `---`) is
+  also stripped.
+- A key needs a space or line end after the colon, as in YAML, so
+  `http://example.com` and `a:b` don't count.
+- Both `\n` and `\r\n` line endings work.
+- Blank lines between the frontmatter and the body are removed. Indentation is
+  kept, so an indented code block right after the frontmatter survives.
 
-- Requires at least two consecutive `key: value` lines at the top.
+### Unfenced frontmatter (opt-in)
 
-- Indented lines (nested lists, maps, `|` strings) and `- item` lines directly
-  under an empty `key:` belong to that key.
+With [`unfenced = true`](#configuration), two or more `key: value` lines at the
+top are stripped even without `---` fences:
 
-- The block ends at the first blank line or the first line that isn't part of
-  it, so leave a blank line between the frontmatter and your content.
+```markdown
+title: My Chapter
+tags:
+  - rust
 
-- Never applies to a chapter whose first line is `---`.
+# My Chapter      ← the chapter now starts here
+```
 
-**Both modes**:
-
-- A `key: value` line needs whitespace (or end of line) after the colon, as in
-  YAML. URLs like `http://example.com` and text like `a:b` are not keys.
-
-- `\n` and `\r\n` line endings are both supported.
-
-- Leading blank lines in the body are removed; indentation is kept, so an
-  indented code block right after the frontmatter survives.
-
-- Chapters without frontmatter are passed through byte-for-byte.
-
-> Behavior is covered by both unit tests (fenced/unfenced detection, edge cases
-> like top-level URLs) and integration tests (nested chapters, parts, and the
-> full preprocessor pipeline), so behavior stays stable across mdBook updates
-> and future changes to this crate.
+The block ends at the first blank line, so **leave a blank line before your
+content**. Indented lines and `- item` lines under an empty `key:` count as part
+of the block. Chapters that start with `---` always use the fenced rules.
 
 ---
 

@@ -23,12 +23,7 @@ fn main() {
 /// Parse CLI arguments and dispatch to the appropriate behavior.
 fn run() -> preprocessor::Result<()> {
     match cli::parse_args(std::env::args().skip(1)) {
-        Command::Supports { renderer } => {
-            if renderer == "html" {
-                process::exit(0);
-            }
-            process::exit(1);
-        }
+        Command::Supports => Ok(()),
         Command::Version => {
             cli::print_version();
             Ok(())

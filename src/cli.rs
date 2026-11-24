@@ -7,7 +7,7 @@
 use std::process;
 
 const USAGE: &str = "\
-      mdbook-frontmatter-strip            
+      mdbook-frontmatter-strip
       mdbook-frontmatter-strip supports <renderer>
       mdbook-frontmatter-strip --version
 ";
@@ -15,7 +15,7 @@ const USAGE: &str = "\
 /// What the binary was asked to do, based on the first CLI argument.
 pub enum Command {
     /// mdBook's capability probe: `supports <renderer>`.
-    Supports { renderer: String },
+    Supports,
     /// `--version` or `-V`.
     Version,
     /// No arguments: normal mdBook preprocessing via stdin/stdout.
@@ -28,9 +28,7 @@ pub enum Command {
 /// [`Command`].
 pub fn parse_args(mut args: impl Iterator<Item = String>) -> Command {
     match args.next().as_deref() {
-        Some("supports") => Command::Supports {
-            renderer: args.next().unwrap_or_default(),
-        },
+        Some("supports") => Command::Supports,
         Some("--version" | "-V") => Command::Version,
         None => Command::Preprocess,
         Some(other) => Command::Unknown {
@@ -62,20 +60,10 @@ mod tests {
     }
 
     #[test]
-    fn supports_html_captures_renderer() {
-        let args = vec!["supports".to_string(), "html".to_string()];
-        match parse_args(args.into_iter()) {
-            Command::Supports { renderer } => assert_eq!(renderer, "html"),
-            _ => panic!("expected Command::Supports"),
-        }
-    }
-
-    #[test]
-    fn supports_with_no_renderer_defaults_to_empty() {
-        let args = vec!["supports".to_string()];
-        match parse_args(args.into_iter()) {
-            Command::Supports { renderer } => assert_eq!(renderer, ""),
-            _ => panic!("expected Command::Supports"),
+    fn supports_any_renderer() {
+        for renderer in ["html", "epub", "pdf", "markdown", ""] {
+            let args = vec!["supports".to_string(), renderer.to_string()];
+            assert!(matches!(parse_args(args.into_iter()), Command::Supports));
         }
     }
 
