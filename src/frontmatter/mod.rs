@@ -1,1 +1,1 @@
-pub(crate) mod yaml_frontmatter;
+pub mod yaml_frontmatter;

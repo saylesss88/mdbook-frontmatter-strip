@@ -218,7 +218,6 @@ from piped stdin.
   a `Result`.
 - The `frontmatter` module is private. Import everything from the crate root
   (`mdbook_frontmatter_strip::parse_frontmatter`).
-- `is_yaml_kv` is no longer public.
 - `Frontmatter` is `#[non_exhaustive]`: you can still read its fields, but you
   can't construct it with a struct literal or destructure it without `..`.
 

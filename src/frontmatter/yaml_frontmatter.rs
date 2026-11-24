@@ -135,7 +135,7 @@ pub fn parse_frontmatter_with(content: &str, opts: ParseOptions) -> Frontmatter<
 /// by whitespace or end of line, as YAML requires, so `http://x` and
 /// `a:b` are rejected.
 #[must_use]
-pub(crate) fn is_yaml_kv(line: &str) -> bool {
+pub fn is_yaml_kv(line: &str) -> bool {
     let line = line.trim();
 
     let after_key = if let Some(q @ ('"' | '\'')) = line.chars().next() {
