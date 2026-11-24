@@ -114,9 +114,18 @@ fn parse_options(ctx: &Value) -> Result<ParseOptions> {
 }
 
 /// Strip frontmatter from every chapter in the book, in place.
+///
+/// mdBook 0.5 sends the chapter list as `items`; 0.4 called it `sections`.
 fn process_book(book: &mut Value, opts: ParseOptions) -> Result<()> {
-    let Some(Value::Array(items)) = book.get_mut("items") else {
-        return Err(Error::MalformedInput("book JSON has no 'items'".into()));
+    let key = if book.get("items").is_some() {
+        "items"
+    } else {
+        "sections"
+    };
+    let Some(Value::Array(items)) = book.get_mut(key) else {
+        return Err(Error::MalformedInput(
+            "book JSON has no 'items' (mdBook 0.5) or 'sections' (mdBook 0.4) array".into(),
+        ));
     };
     for item in items {
         mdbook_frontmatter_strip::process_book_item_with(item, opts);
@@ -188,5 +197,31 @@ mod tests {
         let result: Value = serde_json::from_slice(&output).unwrap();
         // Output should be the book only (no context wrapper array).
         assert_eq!(result["items"][0]["Chapter"]["content"], "body\n");
+    }
+
+    #[test]
+    fn processes_sections_key_from_mdbook_0_4() {
+        let mut book = json!({
+            "sections": [
+                {
+                    "Chapter": {
+                        "content": "---\ntitle: Hi\n---\nbody\n",
+                        "sub_items": []
+                    }
+                }
+            ],
+            "__non_exhaustive": null
+        });
+        process_book(&mut book, ParseOptions::new()).unwrap();
+        assert_eq!(book["sections"][0]["Chapter"]["content"], "body\n");
+        // The 0.4-only field must survive the round trip.
+        assert!(book.get("__non_exhaustive").is_some());
+    }
+
+    #[test]
+    fn rejects_book_with_neither_key() {
+        let mut book = json!({ "chapters": [] });
+        let err = process_book(&mut book, ParseOptions::new()).unwrap_err();
+        assert!(err.to_string().contains("'sections'"));
     }
 }
