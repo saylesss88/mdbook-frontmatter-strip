@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-11-24
+
+### ✨ Added
+
+- support all renderers
+
+### ♻️ Changed
+
+- tighten up public API
+- **(error)** give each context its own error enum
+
+### 🛠️ Fixed
+
+- **(preprocessor)** mdBook 0.4 users get a hard error
+- **(book)** remove non-existant `Part` variant from process_book_item_with and tests
+- use statements
+- **(ci)** release workflow
+
+### 📚 Documentation
+
+- update README
+
 ## [2.0.0] - 2026-10-18
 
 ### ✨ Added
