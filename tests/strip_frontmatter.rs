@@ -88,35 +88,31 @@ title: Nested
 # Nested
 ";
 
-    let mut book = json!({
-        "Part": {
-            "name": "p",
-            "items": [
-                {
-                    "Chapter": {
-                        "name": "outer",
-                        "content": content,
-                        "sub_items": [
-                            {
-                                "Chapter": {
-                                    "name": "inner",
-                                    "content": content,
-                                    "sub_items": []
-                                }
-                            }
-                        ]
+    // Real mdBook shape: chapters under a part title are top-level
+    // siblings of the `PartTitle` item, not children of it.
+    let mut items = json!([
+        { "PartTitle": "Part One" },
+        {
+            "Chapter": {
+                "name": "outer",
+                "content": content,
+                "sub_items": [
+                    {
+                        "Chapter": {
+                            "name": "inner",
+                            "content": content,
+                            "sub_items": []
+                        }
                     }
-                }
-            ]
+                ]
+            }
         }
-    });
+    ]);
 
-    process_book_item(&mut book);
+    process_book_item(&mut items);
 
-    let outer = book["Part"]["items"][0]["Chapter"]["content"]
-        .as_str()
-        .unwrap();
-    let inner = book["Part"]["items"][0]["Chapter"]["sub_items"][0]["Chapter"]["content"]
+    let outer = items[1]["Chapter"]["content"].as_str().unwrap();
+    let inner = items[1]["Chapter"]["sub_items"][0]["Chapter"]["content"]
         .as_str()
         .unwrap();
 

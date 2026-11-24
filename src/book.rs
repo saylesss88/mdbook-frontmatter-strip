@@ -15,33 +15,30 @@ pub fn process_book_item(value: &mut Value) {
 /// Recursively walk an mdbook `BookItem`-shaped [`Value`], stripping
 /// frontmatter from every `Chapter`'s content.
 ///
-/// Handles the `Chapter` and `Part` variants explicitly (mdbook's
-/// `BookItem` enum), plus a few common container keys (`items`, `sub_items`)
-/// so the walk degrades gracefully across mdbook JSON-shape variations
+/// mdBook serializes `BookItem` with serde's default (externally tagged)
+/// representation, so an item is one of:
+///
+/// - `{"Chapter": {..., "content": "...", "sub_items": [...]}}`
+/// - `"Separator"`
+/// - `{"PartTitle": "..."}`
+///
+/// Only chapters carry content. Separators and part titles are left alone,
+/// and chapters under a part title are ordinary siblings in the same list,
+/// so they need no special handling. An array of items is also accepted.
 pub fn process_book_item_with(value: &mut Value, opts: ParseOptions) {
     match value {
         Value::Object(map) => {
             if let Some(Value::Object(chapter)) = map.get_mut("Chapter") {
                 strip_chapter_content(chapter, opts);
-                // Recurse into sub_items
                 if let Some(Value::Array(sub_items)) = chapter.get_mut("sub_items") {
                     for child in sub_items {
                         process_book_item_with(child, opts);
                     }
                 }
             }
-            if let Some(Value::Object(part)) = map.get_mut("Part") {
-                for key in ["items", "sub_items"] {
-                    if let Some(Value::Array(children)) = part.get_mut(key) {
-                        for child in children {
-                            process_book_item_with(child, opts);
-                        }
-                    }
-                }
-            }
         }
-        Value::Array(arr) => {
-            for item in arr {
+        Value::Array(items) => {
+            for item in items {
                 process_book_item_with(item, opts);
             }
         }
@@ -99,24 +96,21 @@ mod tests {
     }
 
     #[test]
-    fn recurses_into_part_items() {
-        let mut value = json!({
-            "Part": {
-                "items": [
-                    {
-                        "Chapter": {
-                            "content": "---\ntitle: In Part\n---\npart body\n",
-                            "sub_items": []
-                        }
-                    }
-                ]
+    fn separator_and_part_title_are_left_alone() {
+        let mut value = json!([
+            { "PartTitle": "---\ntitle: Not a chapter\n---\n" },
+            "Separator",
+            {
+                "Chapter": {
+                    "content": "---\ntitle: After part\n---\nbody\n",
+                    "sub_items": []
+                }
             }
-        });
+        ]);
         process_book_item(&mut value);
-        assert_eq!(
-            value["Part"]["items"][0]["Chapter"]["content"],
-            "part body\n"
-        );
+        assert_eq!(value[0]["PartTitle"], "---\ntitle: Not a chapter\n---\n");
+        assert_eq!(value[1], "Separator");
+        assert_eq!(value[2]["Chapter"]["content"], "body\n");
     }
 
     #[test]
