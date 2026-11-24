@@ -2,7 +2,10 @@
 //! from stdin, strip frontmatter from every chapter, write the modified book
 //! JSON back to stdout.
 
-use std::io::{self, Read, Write};
+use std::{
+    error, fmt,
+    io::{self, Read, Write},
+};
 
 use serde_json::Value;
 
@@ -30,7 +33,7 @@ pub enum Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Io(e) => write!(f, "I/O error: {e}"),
             Self::Json(e) => write!(f, "JSON error: {e}"),
@@ -39,8 +42,8 @@ impl std::fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl error::Error for Error {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
             Self::Io(e) => Some(e),
             Self::Json(e) => Some(e),
