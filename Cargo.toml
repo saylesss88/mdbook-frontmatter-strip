@@ -8,7 +8,8 @@ repository = "https://github.com/saylesss88/mdbook-frontmatter-strip"
 readme = "README.md"
 keywords = ["mdbook", "frontmatter", "yaml", "preprocessor", "markdown"]
 categories = ["command-line-utilities", "text-processing"]
-exclude = [".github", "tests", "coverage-report", "*.profdata", "*.profraw"]
+exclude = [".github", "coverage-report", "*.profdata", "*.profraw"]
+rust-version = "1.88"
 
 [dependencies]
 serde_json = { version = "1.0.151", default-features = false, features = [
