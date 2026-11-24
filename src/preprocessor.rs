@@ -7,10 +7,59 @@ use std::io::{self, Read, Write};
 use serde_json::Value;
 
 use mdbook_frontmatter_strip::ParseOptions;
-use mdbook_frontmatter_strip::error::{Error, Result};
 
 /// The `[preprocessor.<NAME>]` table this preprocessor reads its options from.
 const NAME: &str = "frontmatter-strip";
+
+/// Everything that can go wrong while running as an mdBook preprocessor.
+///
+/// Frontmatter stripping itself is infallible, so every variant here is about
+/// the mdBook protocol: reading stdin, parsing/writing JSON, and the shape of
+/// what mdBook sent.
+#[derive(Debug)]
+pub enum Error {
+    /// Reading stdin or writing stdout failed.
+    Io(io::Error),
+    /// stdin wasn't valid JSON, or the book couldn't be serialized.
+    Json(serde_json::Error),
+    /// Valid JSON, but not the `[context, book]` shape mdBook sends.
+    MalformedInput(String),
+}
+
+/// Shorthand for results in this module.
+pub type Result<T> = std::result::Result<T, Error>;
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Io(e) => write!(f, "I/O error: {e}"),
+            Self::Json(e) => write!(f, "JSON error: {e}"),
+            Self::MalformedInput(msg) => write!(f, "malformed input: {msg}"),
+        }
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Io(e) => Some(e),
+            Self::Json(e) => Some(e),
+            Self::MalformedInput(_) => None,
+        }
+    }
+}
+
+impl From<io::Error> for Error {
+    fn from(e: io::Error) -> Self {
+        Self::Io(e)
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(e: serde_json::Error) -> Self {
+        Self::Json(e)
+    }
+}
 
 /// Run the full preprocessor: read stdin, process, write stdout.
 pub fn run(mut input: impl Read, output: impl Write) -> Result<()> {
@@ -29,7 +78,7 @@ pub fn run_with_stdio() -> Result<()> {
 
 /// Parse the `[context, book]` array mdBook sends on stdin.
 fn parse_input(input: &str) -> Result<Vec<Value>> {
-    let values: Vec<Value> = serde_json::from_str(input).map_err(Error::Json)?;
+    let values: Vec<Value> = serde_json::from_str(input)?;
     if values.len() != 2 {
         return Err(Error::MalformedInput(format!(
             "Expected [context, book] array from mdBook (got len = {})",

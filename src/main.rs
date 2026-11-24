@@ -12,10 +12,16 @@ mod preprocessor;
 use cli::Command;
 use std::process;
 
-use mdbook_frontmatter_strip::error::Result;
+/// Run the CLI; on failure, print the error's `Display` form and exit 1.
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("mdbook-frontmatter-strip: {e}");
+        process::exit(1);
+    }
+}
 
 /// Parse CLI arguments and dispatch to the appropriate behavior.
-fn main() -> Result<()> {
+fn run() -> preprocessor::Result<()> {
     match cli::parse_args(std::env::args().skip(1)) {
         Command::Supports { renderer } => {
             if renderer == "html" {
