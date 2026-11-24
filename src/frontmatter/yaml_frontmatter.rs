@@ -56,6 +56,7 @@ impl ParseOptions {
 }
 
 /// The result of parsing frontmatter from a Markdown string.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Frontmatter<'a> {
     /// The raw YAML string between the `---` fences, or the heuristically
@@ -134,7 +135,7 @@ pub fn parse_frontmatter_with(content: &str, opts: ParseOptions) -> Frontmatter<
 /// by whitespace or end of line, as YAML requires, so `http://x` and
 /// `a:b` are rejected.
 #[must_use]
-pub fn is_yaml_kv(line: &str) -> bool {
+pub(crate) fn is_yaml_kv(line: &str) -> bool {
     let line = line.trim();
 
     let after_key = if let Some(q @ ('"' | '\'')) = line.chars().next() {
