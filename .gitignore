@@ -30,6 +30,7 @@ result
 # Local testing mdBook instances (when you run `mdbook serve` or `mdbook build` locally in a test folder)
 /example-book/
 /test-book/
+/tests/book/book/
 /book/
 /temp-book/
 

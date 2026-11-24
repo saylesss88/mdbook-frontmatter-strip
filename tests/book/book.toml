@@ -1,0 +1,12 @@
+# End-to-end fixture: built by real mdBook in CI (see tests/e2e.sh).
+[book]
+title = "frontmatter-strip e2e"
+
+[preprocessor.frontmatter-strip]
+unfenced = true
+
+[output.html]
+
+# Writes preprocessed chapters as plain Markdown, so the test can check exact
+# text, and proves the preprocessor runs for renderers other than HTML.
+[output.markdown]
